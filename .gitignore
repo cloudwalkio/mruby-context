@@ -1,0 +1,5 @@
+*.o
+*.mrb
+coverage/*
+stats
+stats/*

@@ -6,7 +6,7 @@ mruby-context
 ## Example
 ```
 % mirb
-> mrb_exec("puts 'New context'")
+> mrb_eval("puts 'New context'")
 New context
  => true
 ...

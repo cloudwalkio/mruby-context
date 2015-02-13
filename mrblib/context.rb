@@ -21,7 +21,8 @@ class Context
         DaFunk.setup_command_line
       end
 
-      Device.klass = app if require "main.mrb"
+      # TODO Scalone check security
+      Device::System.klass = app if require "main.mrb"
 
       # Main should have implement method call
       #  method call was need to avoid memory leak on irep table

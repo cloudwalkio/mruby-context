@@ -1,5 +1,5 @@
 class Context
-  def self.start(app = "base", platform = nil)
+  def self.start(app = "main", platform = nil, json = nil)
     begin
       $LOAD_PATH = ["./#{app}"]
 
@@ -7,24 +7,29 @@ class Context
       if File.exist?("./#{app}/da_funk.mrb")
         require "da_funk.mrb"
       else
-        require "./base/da_funk.mrb"
+        require "./main/da_funk.mrb"
       end
 
       # Platform library responsible for implement the adapter for DaFunk
       # class Device #DaFunk abstraction
       #   self.adapter =
-      if File.exist?("./base/#{platform}.mrb")
-        require "./base/#{platform}.mrb"
+      platform_mrb = "./main/#{platform.to_s.downcase}.mrb"
+      if platform && File.exist?(platform_mrb)
+        require platform_mrb
         DaFunk.constantize(platform).setup
       else
         DaFunk.setup_command_line
       end
 
-      require "main.mrb"
+      Device.klass = app if require "main.mrb"
 
       # Main should have implement method call
       #  method call was need to avoid memory leak on irep table
-      Main.call
+      if json
+        Main.call(json)
+      else
+        Main.call
+      end
     rescue => @exception
       Device::Display.clear if Device::Display.adapter.respond_to? :clear
       puts "#{@exception.class}: #{@exception.message}"

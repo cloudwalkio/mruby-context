@@ -16,7 +16,7 @@ class Context
       platform_mrb = "./main/#{platform.to_s.downcase}.mrb"
       if platform && File.exist?(platform_mrb)
         require platform_mrb
-        DaFunk.constantize(platform).setup
+        Device::Support.constantize(platform).setup
       else
         DaFunk.setup_command_line
       end

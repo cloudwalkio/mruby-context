@@ -18,10 +18,10 @@ class Context
         require platform_mrb
         Device::Support.constantize(platform).setup
       else
-        DaFunk.setup_command_line
+        # TODO
+        # DaFunk.setup_command_line
       end
 
-      # TODO Scalone check security
       Device::System.klass = app if require "main.mrb"
 
       # Main should have implement method call

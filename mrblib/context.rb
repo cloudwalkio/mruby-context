@@ -26,10 +26,10 @@ class Context
 
       # Main should have implement method call
       #  method call was need to avoid memory leak on irep table
-      if json
-        Main.call(json)
-      else
+      if json.nil? || json.empty?
         Main.call
+      else
+        Main.call(json)
       end
     rescue => @exception
       Device::Display.clear if Device::Display.adapter.respond_to? :clear

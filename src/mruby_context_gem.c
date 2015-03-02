@@ -19,7 +19,7 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
 {
   mrb_state *mrb2=NULL;
   mrbc_context *c;
-  mrb_value code, ret;
+  mrb_value code, ret, mrb_ret = mrb_nil_value();
 
   mrb_get_args(mrb, "S", &code);
 
@@ -27,12 +27,18 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
   c = mrbc_context_new(mrb2);
 
   ret = mrb_load_string_cxt(mrb2, RSTRING_PTR(code), c);
-  if (mrb_undef_p(ret)) return mrb_false_value();
+
+  if (mrb_undef_p(ret))
+    mrb_ret = mrb_nil_value();
+  else if (mrb_string_p(ret))
+    mrb_ret = mrb_str_new_cstr(mrb, RSTRING_PTR(ret));
+  else
+    mrb_ret = ret;
 
   mrbc_context_free(mrb2, c);
   mrb_close(mrb2);
 
-  return ret;
+  return mrb_ret;
 }
 
 void

@@ -34,7 +34,7 @@ class Context
     rescue => @exception
       Device::Display.clear if Device::Display.adapter.respond_to? :clear
       puts "#{@exception.class}: #{@exception.message}"
-      puts "#{@exception.backtrace[0..2].join("\n")}"
+      puts "#{@exception.backtrace.join("\n")}"
       getc(0)
       return nil
     end

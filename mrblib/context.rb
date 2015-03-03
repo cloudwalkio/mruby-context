@@ -32,6 +32,7 @@ class Context
         Main.call(json)
       end
     rescue => @exception
+      ContextLog.error(@exception, "During Context.start")
       Device::Display.clear if Device::Display.adapter.respond_to? :clear
       puts "#{@exception.class}: #{@exception.message}"
       puts "#{@exception.backtrace.join("\n")}"

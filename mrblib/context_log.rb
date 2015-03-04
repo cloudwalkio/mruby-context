@@ -1,4 +1,10 @@
 class ContextLog
+  class << self
+    attr_accessor :enable
+    alias_method :enable?, :enable
+  end
+  self.enable = true
+
   FILE_ERROR_LOG = "./main/erro.log"
   FILE_INFO_LOG  = "./main/info.log"
   FILE_WARN_LOG  = "./main/warn.log"
@@ -22,6 +28,7 @@ class ContextLog
   end
 
   def self.persist(filename)
+    return unless self.enable?
     handle = File.open(filename, "a")
     handle.write("\n========================================")
     handle.write("\n#{Time.now}")
@@ -30,5 +37,9 @@ class ContextLog
 
     handle.write("\n========================================")
     handle.close unless handle.closed?
+  end
+
+  def self.enable?
+    self.enable
   end
 end

@@ -35,7 +35,7 @@ class Context
       ContextLog.error(@exception, "During Context.start")
       Device::Display.clear if Device::Display.adapter.respond_to? :clear
       puts "#{@exception.class}: #{@exception.message}"
-      puts "#{@exception.backtrace.join("\n")}"
+      puts "#{@exception.backtrace[0..2].join("\n")}"
       getc(0)
       return nil
     end

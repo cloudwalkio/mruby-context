@@ -1,4 +1,12 @@
 class Context
+  ENV_PRODUCTION  = "production"
+  ENV_DEVELOPMENT = "development"
+
+  class << self
+    attr_accessor :env
+  end
+  self.env = ENV_DEVELOPMENT
+
   def self.start(app = "main", platform = nil, json = nil)
     begin
       $LOAD_PATH = ["./#{app}"]

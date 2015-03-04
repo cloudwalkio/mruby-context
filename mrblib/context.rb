@@ -40,13 +40,34 @@ class Context
         Main.call(json)
       end
     rescue => @exception
-      ContextLog.error(@exception, "During Context.start")
-      Device::Display.clear if Device::Display.adapter.respond_to? :clear
+      self.treat(@exception)
+    end
+  end
+
+  def self.treat(exception, message = "")
+    ContextLog.error(@exception, message)
+    Device::Display.clear if self.clear_defined?
+    if self.development?
       puts "#{@exception.class}: #{@exception.message}"
       puts "#{@exception.backtrace[0..2].join("\n")}"
-      getc(0)
-      return nil
+    else
+      puts "\nOooops!"
+      puts "Unexpected error"
+      puts "Contact the administrator, problem logged with success."
     end
+    getc(0)
+  end
+
+  def self.clear_defined?
+    Object.const_defined?(:Device) && Device.const_defined?(:Display) && Device::Display.adapter.respond_to?(:clear)
+  end
+
+  def self.development?
+    self.env == ENV_DEVELOPMENT
+  end
+
+  def self.production?
+    self.env == ENV_PRODUCTION
   end
 end
 

@@ -41,14 +41,36 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
   return mrb_ret;
 }
 
+mrb_value variables;
+
+static mrb_value
+mrb_posxml_variables(mrb_state *mrb, mrb_value self)
+{
+  if (mrb_undef_p(variables))
+    return mrb_nil_value();
+  else
+    return variables;
+}
+
+static mrb_value
+mrb_posxml_set_variables(mrb_state *mrb, mrb_value self)
+{
+  mrb_get_args(mrb, "S", &variables);
+
+  return mrb_true_value();
+}
+
 void
 mrb_mruby_context_gem_init(mrb_state* mrb)
 {
-  struct RClass *krn;
+  struct RClass *krn, *posxml;
 
   krn = mrb->kernel_module;
+  posxml = mrb_define_module(mrb, "Posxml");
 
-  mrb_define_method(mrb, krn, "mrb_eval", mrb_mrb_eval, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb       , krn    , "mrb_eval"          , mrb_mrb_eval             , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , posxml , "posxml_variables"  , mrb_posxml_variables     , MRB_ARGS_NONE());
+  mrb_define_class_method(mrb , posxml , "posxml_variables=" , mrb_posxml_set_variables , MRB_ARGS_REQ(1));
 
   DONE;
 }

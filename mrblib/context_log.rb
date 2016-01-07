@@ -13,9 +13,11 @@ class ContextLog
     persist(FILE_ERROR_LOG) do |handle|
       handle.write("\n#{exception.class}: #{exception.message}")
       handle.write("\n#{exception.backtrace.join("\n")}")
-      handle.write("\n----------------------------------------")
-      handle.write("\n#{text}")
-      handle.write("\n----------------------------------------")
+      unless text.empty?
+        handle.write("\n----------------------------------------")
+        handle.write("\n#{text}")
+        handle.write("\n----------------------------------------")
+      end
     end
   end
 

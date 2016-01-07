@@ -5,7 +5,7 @@ class ContextLog
   end
   self.enable = true
 
-  FILE_ERROR_LOG = "./main/erro.log"
+  FILE_ERROR_LOG = "./main/error.log"
   FILE_INFO_LOG  = "./main/info.log"
   FILE_WARN_LOG  = "./main/warn.log"
 

@@ -56,6 +56,7 @@ class Context
       require platform_mrb
       Device::Support.constantize(platform).setup
     else
+      require "./main/command_line_platform.mrb"
       # TODO
       # DaFunk.setup_command_line
     end

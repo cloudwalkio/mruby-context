@@ -20,6 +20,7 @@ class Context
   end
 
   def self.posxml(file, platform)
+    $LOAD_PATH.unshift "./main"
     self.setup(file, platform)
     Device::System.klass = file
     PosxmlInterpreter.new(file).start

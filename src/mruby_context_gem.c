@@ -41,22 +41,30 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
   return mrb_ret;
 }
 
-mrb_value variables;
+char *variables;
 
 static mrb_value
 mrb_posxml_variables(mrb_state *mrb, mrb_value self)
 {
-  if (mrb_undef_p(variables))
+  if (variables == NULL)
     return mrb_nil_value();
   else
-    return variables;
+    return mrb_str_new_cstr(mrb, variables);
 }
 
 static mrb_value
 mrb_posxml_set_variables(mrb_state *mrb, mrb_value self)
 {
-  mrb_get_args(mrb, "S", &variables);
+  mrb_value var;
+  mrb_get_args(mrb, "S", &var);
 
+  if (variables != NULL){
+    free(variables);
+  }
+
+  variables = malloc(RSTRING_LEN(var) + 1);
+  memset(variables, 0, RSTRING_LEN(var) + 1);
+  strcpy(variables, RSTRING_PTR(var));
   return mrb_true_value();
 }
 

@@ -9,7 +9,7 @@ class Context
 
   def self.start(app = "main", platform = nil, json = nil)
     begin
-      if app.split(".")[1] == "posxml"
+      if app.split(".").last == "posxml"
         posxml(app, platform)
       else
         ruby(app, platform, json)

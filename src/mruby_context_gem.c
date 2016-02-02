@@ -64,7 +64,7 @@ mrb_posxml_set_variables(mrb_state *mrb, mrb_value self)
 
   variables = malloc(RSTRING_LEN(var) + 1);
   memset(variables, 0, RSTRING_LEN(var) + 1);
-  strcpy(variables, RSTRING_PTR(var));
+  strncpy(variables, RSTRING_PTR(var), RSTRING_LEN(var));
   return mrb_true_value();
 }
 

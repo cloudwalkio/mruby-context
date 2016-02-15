@@ -67,7 +67,7 @@ class Context
     Device::Display.clear if self.clear_defined?
     if self.development?
       puts "#{@exception.class}: #{@exception.message}"
-      puts "#{@exception.backtrace[0..2].join("\n")}"
+      puts @exception.backtrace[0]
     else
       puts "\nOooops!"
       puts "Unexpected error"

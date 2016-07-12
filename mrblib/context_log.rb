@@ -5,40 +5,36 @@ class ContextLog
   end
   self.enable = true
 
-  FILE_ERROR_LOG = "./main/error.log"
-  FILE_INFO_LOG  = "./main/info.log"
-  FILE_WARN_LOG  = "./main/warn.log"
+  FILE_LOG = "./main/main.log"
 
-  def self.error(exception, text = "")
-    persist(FILE_ERROR_LOG) do |handle|
-      handle.write("\n#{exception.class}: #{exception.message}")
-      handle.write("\n#{exception.backtrace.join("\n")}")
+  def self.error(exception, backtrace, text = "")
+    persist do |handle|
+      handle.write("\n========================================")
       unless text.empty?
-        handle.write("\n----------------------------------------")
         handle.write("\n#{text}")
         handle.write("\n----------------------------------------")
       end
+      handle.write("\n#{exception.class}: #{exception.message}")
+      handle.write("\n#{backtrace.join("\n")}")
+      handle.write("\n========================================")
     end
   end
 
   def self.info(text = "")
-    persist(FILE_INFO_LOG) { |handle| handle.write(text) }
+    persist do |handle|
+      handle.write("\n#{Time.now} - INFO - [#{text}]")
+    end
   end
 
   def self.warn(text = "")
-    persist(FILE_WARN_LOG) { |handle| handle.write(text) }
+    persist do |handle|
+      handle.write("\n#{Time.now} - WARN - [#{text}]")
+    end
   end
 
-  def self.persist(filename)
+  def self.persist
     return unless self.enable?
-    handle = File.open(filename, "a")
-    handle.write("\n========================================")
-    handle.write("\n#{Time.now}")
-
-    yield(handle) if block_given?
-
-    handle.write("\n========================================")
-    handle.close unless handle.closed?
+    File.open(FILE_LOG, "a") { |handle| yield(handle) if block_given? }
   end
 
   def self.enable?

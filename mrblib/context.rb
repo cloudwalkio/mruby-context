@@ -14,8 +14,8 @@ class Context
       else
         ruby(app, platform, json)
       end
-    rescue => @exception
-      self.treat(@exception)
+    rescue => exception
+      self.treat(exception)
     end
   end
 
@@ -63,15 +63,16 @@ class Context
   end
 
   def self.treat(exception, message = "")
-    ContextLog.error(@exception, message)
+    backtrace = exception.backtrace
+    ContextLog.error(exception, backtrace, message)
     Device::Display.clear if self.clear_defined?
     if self.development?
-      puts "#{@exception.class}: #{@exception.message}"
-      puts @exception.backtrace[0]
+      puts "#{exception.class}: #{exception.message}"
+      puts backtrace[0..2].join("\n")
     else
-      puts "\nOooops!"
-      puts "Unexpected error"
-      puts "Contact the administrator, problem logged with success."
+      puts "\nOOOOPS!"
+      puts "UNEXPECTED ERROR"
+      puts "CONTACT THE ADMINISTRATOR, PROBLEM LOGGED WITH SUCCESS."
     end
     getc(0)
   end

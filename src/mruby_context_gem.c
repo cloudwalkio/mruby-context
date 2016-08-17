@@ -60,6 +60,8 @@ context_memprof_allocf(struct mrb_state *mrb, void *ptr, size_t size, void *ud0)
     return NULL;
   }
   else {
+    /*Check memory leak size*/
+    if (size >= 1000000) return NULL;
     /* malloc(size) or realloc(ptr, size) */
     if (ptr == NULL) {
       ud->malloc_cnt++;

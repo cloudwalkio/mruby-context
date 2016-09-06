@@ -22,13 +22,13 @@ class ContextLog
 
   def self.info(text = "")
     persist do |handle|
-      handle.write("\n#{Time.now} - INFO - [#{text}]")
+      handle.write("\n#{self.time} - INFO - [#{text}]")
     end
   end
 
   def self.warn(text = "")
     persist do |handle|
-      handle.write("\n#{Time.now} - WARN - [#{text}]")
+      handle.write("\n#{self.time} - WARN - [#{text}]")
     end
   end
 
@@ -39,5 +39,10 @@ class ContextLog
 
   def self.enable?
     self.enable
+  end
+
+  def self.time
+    time = Time.now
+    "%d-%d-%d %02d:%02d:%02d:%06d" % [time.year, time.month, time.day, time.hour, time.min, time.sec, time.usec]
   end
 end

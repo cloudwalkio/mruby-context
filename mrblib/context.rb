@@ -10,7 +10,7 @@ class Context
   def self.start(app = "main", platform = nil, json = nil)
     begin
       if app.split(".").last == "posxml"
-        posxml(app, platform)
+        posxml(app, platform, json)
       else
         ruby(app, platform, json)
       end
@@ -19,11 +19,11 @@ class Context
     end
   end
 
-  def self.posxml(file, platform)
+  def self.posxml(file, platform, json = nil)
     $LOAD_PATH.unshift "./main"
     self.setup(file, platform)
     Device::System.klass = file
-    PosxmlInterpreter.new(file).start
+    PosxmlInterpreter.new(file, json).start
   end
 
   def self.ruby(app, platform, json)

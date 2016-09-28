@@ -64,7 +64,7 @@ class Context
 
   def self.treat(exception, message = "")
     backtrace = exception.backtrace
-    ContextLog.error(exception, backtrace, message)
+    ContextLog.exception(exception, backtrace, message)
     Device::Display.clear if self.clear_defined?
     if self.development?
       puts "#{exception.class}: #{exception.message}"

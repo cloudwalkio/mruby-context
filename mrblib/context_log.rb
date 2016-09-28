@@ -7,7 +7,7 @@ class ContextLog
 
   FILE_LOG = "./main/main.log"
 
-  def self.error(exception, backtrace, text = "")
+  def self.exception(exception, backtrace, text = "")
     persist do |handle|
       handle.write("\n========================================")
       unless text.empty?
@@ -17,6 +17,12 @@ class ContextLog
       handle.write("\n#{exception.class}: #{exception.message}")
       handle.write("\n#{backtrace.join("\n")}")
       handle.write("\n========================================")
+    end
+  end
+
+  def self.error(text = "")
+    persist do |handle|
+      handle.write("\n#{self.time} - ERROR - [#{text}]")
     end
   end
 

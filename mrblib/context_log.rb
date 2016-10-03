@@ -40,11 +40,17 @@ class ContextLog
 
   def self.persist
     return unless self.enable?
-    File.open(FILE_LOG, "a") { |handle| yield(handle) if block_given? }
+    path = FILE_LOG.gsub("/main.log", "/#{self.time_path}.log")
+    File.open(path, "a") { |handle| yield(handle) if block_given? }
   end
 
   def self.enable?
     self.enable
+  end
+
+  def self.time_path
+    time = Time.now
+    "%d-%02d-%02d" % [time.year, time.month, time.day]
   end
 
   def self.time

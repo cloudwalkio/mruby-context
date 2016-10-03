@@ -49,6 +49,6 @@ class ContextLog
 
   def self.time
     time = Time.now
-    "%d-%d-%d %02d:%02d:%02d:%06d" % [time.year, time.month, time.day, time.hour, time.min, time.sec, time.usec]
+    "%d-%02d-%02d %02d:%02d:%02d:%06d" % [time.year, time.month, time.day, time.hour, time.min, time.sec, time.usec]
   end
 end

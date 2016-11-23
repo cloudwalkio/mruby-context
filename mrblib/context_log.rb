@@ -1,6 +1,6 @@
 class ContextLog
   class << self
-    attr_accessor :enable
+    attr_accessor :enable, :adapter
     alias_method :enable?, :enable
   end
   self.enable = true
@@ -41,7 +41,12 @@ class ContextLog
   def self.persist
     return unless self.enable?
     path = FILE_LOG.gsub("/main.log", "/#{self.time_path}.log")
-    File.open(path, "a") { |handle| yield(handle) if block_given? }
+    File.open(path, "a") do |handle|
+      if block_given?
+        yield(self.adapter) if self.adapter
+        yield(handle)
+      end
+    end
   end
 
   def self.enable?
@@ -58,3 +63,4 @@ class ContextLog
     "%d-%02d-%02d %02d:%02d:%02d:%06d" % [time.year, time.month, time.day, time.hour, time.min, time.sec, time.usec]
   end
 end
+

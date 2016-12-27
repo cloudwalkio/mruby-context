@@ -1,7 +1,7 @@
 MRuby::Gem::Specification.new('mruby-context') do |spec|
   spec.license = 'MIT'
   spec.authors = 'Thiago Scalone'
-  spec.version = "1.0.0"
+  spec.version = "1.3.0"
 
   spec.cc.include_paths << "#{build.root}/src"
 

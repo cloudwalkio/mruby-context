@@ -8,15 +8,13 @@ class Context
   self.env = ENV_DEVELOPMENT
 
   def self.start(app = "main", platform = nil, json = nil)
-    begin
-      if app.split(".").last == "posxml"
-        posxml(app, platform, json)
-      else
-        ruby(app, platform, json)
-      end
-    rescue => exception
-      self.treat(exception)
+    if app.split(".").last == "posxml"
+      posxml(app, platform, json)
+    else
+      ruby(app, platform, json)
     end
+  rescue => exception
+    self.treat(exception)
   end
 
   def self.posxml(file, platform, json = nil)

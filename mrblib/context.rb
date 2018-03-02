@@ -15,6 +15,8 @@ class Context
     end
   rescue => exception
     self.treat(exception)
+  ensure
+    self.teardown
   end
 
   def self.posxml(file, platform, json = nil)
@@ -57,6 +59,12 @@ class Context
       require "./main/command_line_platform.mrb"
       # TODO
       # DaFunk.setup_command_line
+    end
+  end
+
+  def self.teardown
+    if Object.const_defined?(:Device) && Device.const_defined?(:System) && Device::System.respond_to?(:teardown)
+      Device::System.teardown
     end
   end
 

@@ -60,6 +60,7 @@ class Context
       # TODO
       # DaFunk.setup_command_line
     end
+    Device::Runtime.system_reload
   end
 
   def self.teardown

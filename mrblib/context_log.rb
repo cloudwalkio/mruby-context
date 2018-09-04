@@ -21,21 +21,21 @@ class ContextLog
     end
   end
 
-  def self.error(text = "")
+  def self.error(text = "", utc = false)
     persist do |handle|
-      handle.write("\n#{self.time} - ERROR - [#{text}]")
+      handle.write("\n#{self.time(utc)} - ERROR - [#{text}]")
     end
   end
 
-  def self.info(text = "")
+  def self.info(text = "", utc = false)
     persist do |handle|
-      handle.write("\n#{self.time} - INFO - [#{text}]")
+      handle.write("\n#{self.time(utc)} - INFO - [#{text}]")
     end
   end
 
-  def self.warn(text = "")
+  def self.warn(text = "", utc = false)
     persist do |handle|
-      handle.write("\n#{self.time} - WARN - [#{text}]")
+      handle.write("\n#{self.time(utc)} - WARN - [#{text}]")
     end
   end
 
@@ -60,9 +60,18 @@ class ContextLog
     "%d-%02d-%02d" % [time.year, time.month, time.day]
   end
 
-  def self.time
+  def self.time(utc)
     time = Time.now
+    if utc
+      if Device::Setting.cw_pos_timezone.nil? || Device::Setting.cw_pos_timezone.empty?
+        # by default we assume that we're using brasilia timezone
+        time += 10800
+      elsif Device::Setting.cw_pos_timezone[0] == '+'
+        time += ((Device::Setting.cw_pos_timezone[1..2].to_i) * 60 * 60)
+      else
+        time -= ((Device::Setting.cw_pos_timezone[1..2].to_i) * 60 * 60)
+      end
+    end
     "%d-%02d-%02d %02d:%02d:%02d:%06d" % [time.year, time.month, time.day, time.hour, time.min, time.sec, time.usec]
   end
 end
-

@@ -10,14 +10,11 @@ class ContextLog
 
   def self.exception(exception, backtrace, text = "")
     persist do |handle|
-      handle.write("\n========================================")
       unless text.empty?
-        handle.write("\n#{text}")
-        handle.write("\n----------------------------------------")
+        handle.write("\n#{self.time(true)} - EXCEPTION - [[EX] TEXT] #{text}]")
       end
-      handle.write("\n#{exception.class}: #{exception.message}")
-      handle.write("\n#{backtrace.join("\n")}")
-      handle.write("\n========================================")
+      handle.write("\n#{self.time(true)} - EXCEPTION - [[EX] CLASS] #{exception.class}: #{exception.message}]")
+      handle.write("\n#{self.time(true)} - EXCEPTION - [[EX] BACKTRACE] #{backtrace.join("\n")}]")
     end
   end
 

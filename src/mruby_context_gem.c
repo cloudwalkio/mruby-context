@@ -11,6 +11,8 @@
 
 #include "mruby/error.h"
 
+#define DONE mrb_gc_arena_restore(mrb, 0);
+
 struct memheader {
   size_t len; /* size of obj (not including len) */
   union {     /* union for alignment */
@@ -205,6 +207,8 @@ mrb_mruby_context_gem_init(mrb_state* mrb)
   mrb_define_class_method(mrb , vm  , "total_memory"   , mrb_vm_s_total_memory   , MRB_ARGS_NONE());
   mrb_define_class_method(mrb , vm  , "objects"        , mrb_vm_s_objects        , MRB_ARGS_NONE());
   mrb_define_class_method(mrb , vm  , "current_memory" , mrb_vm_s_current_memory , MRB_ARGS_NONE());
+
+  DONE;
 }
 
 void

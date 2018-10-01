@@ -190,6 +190,8 @@ mrb_vm_s_current_memory(mrb_state *mrb, mrb_value self)
   return mrb_fixnum_value(ud->current_size);
 }
 
+void mrb_thread_scheduler_init(mrb_state* mrb);
+
 void
 mrb_mruby_context_gem_init(mrb_state* mrb)
 {
@@ -209,6 +211,8 @@ mrb_mruby_context_gem_init(mrb_state* mrb)
   mrb_define_class_method(mrb , vm  , "current_memory" , mrb_vm_s_current_memory , MRB_ARGS_NONE());
 
   DONE;
+
+  mrb_thread_scheduler_init(mrb); DONE;
 }
 
 void

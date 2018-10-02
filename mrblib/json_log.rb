@@ -22,7 +22,7 @@ class JsonLog
       end
     end
     result[:general].push(self.add_injected_keys_on_json_log)
-    result
+    JSON::stringify(result)
   end
 
   private

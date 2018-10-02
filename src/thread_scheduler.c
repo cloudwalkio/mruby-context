@@ -355,7 +355,7 @@ mrb_thread_channel_s_queue_read(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0;
+  mrb_int id = 0, try = 1;
   mrb_value command;
   char response[256] = {0x00};
 
@@ -367,15 +367,16 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
     CommunicationThread->status = THREAD_STATUS_COMMAND;
     context_sem_push(CommunicationThread);
 
-    while(CommunicationThread->status == THREAD_STATUS_COMMAND) {
+    while(CommunicationThread->status == THREAD_STATUS_COMMAND && try <= 20) {
       usleep(10000);
+      try++;
     }
 
     context_sem_wait(CommunicationThread);
     if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
       memcpy(response, CommunicationThread->response, sizeof(response));
     } else {
-      strcpy(response, "false");
+      strcpy(response, "cache");
     }
     if (CommunicationThread->status != THREAD_STATUS_DEAD)
       CommunicationThread->status = THREAD_STATUS_ALIVE;

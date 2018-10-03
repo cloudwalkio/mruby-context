@@ -387,7 +387,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
     return mrb_str_new_cstr(mrb, response);
   }
 
-  return mrb_str_new_cstr(mrb, "false");
+  return mrb_str_new_cstr(mrb, "cache");
 }
 
 static mrb_value

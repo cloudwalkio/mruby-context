@@ -28,6 +28,11 @@ class Context
 
   def self.ruby(app, platform, json)
     $LOAD_PATH = ["./#{app}"]
+
+    if Object.const_defined? :Platform
+      Platform.boot if Platform.respond_to?(:boot)
+    end
+
     self.setup(app, platform)
     Device::System.klass = app if require "main.mrb"
 

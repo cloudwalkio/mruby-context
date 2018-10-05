@@ -19,7 +19,6 @@ class Context
 
     def self.close
       ThreadScheduler.command(THREAD_COMMUNICATION, "close")
-      PaymentChannel.client = nil
     end
 
     def self.connected?

@@ -27,7 +27,14 @@ class Context
     end
 
     def self.handshake?
-      ThreadScheduler.command(THREAD_COMMUNICATION, "handshake?")
+      if self.connected?
+        timeout = Time.now + Device::Setting.tcp_recv_timeout.to_i
+        loop do
+          break(true) if ThreadScheduler.command(THREAD_COMMUNICATION, "handshake?")
+          break if Time.now > timeout || getc(200) == Device::IO::CANCEL
+        end
+      end
+    end
     end
 
     def self.check

@@ -34,6 +34,21 @@ class Context
         end
       end
     end
+
+    def self.handshake
+      ThreadScheduler.command(THREAD_COMMUNICATION, "handshake")
+    end
+
+    def self.connect(options = nil)
+      if ThreadScheduler.command(THREAD_COMMUNICATION, "connect")
+        self
+      end
+    end
+
+    def self.handshake_response
+      if DaFunk::ParamsDat.file["access_token"]
+        {"token" => DaFunk::ParamsDat.file["access_token"]}.to_json
+      end
     end
 
     def self.check

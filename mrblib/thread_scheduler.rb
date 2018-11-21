@@ -80,6 +80,32 @@ class ThreadScheduler
     check(thread) == :dead
   end
 
+  def self.pause?(thread)
+    check(thread) == :pause
+  end
+
+  def self.pause!(thread)
+    _pause(thread)
+  end
+
+  def self.continue!(thread)
+    _pause(thread)
+  end
+
+  def self.pausing_communication(&block)
+    if DaFunk::PaymentChannel.client == Context::CommunicationChannel
+      pausing(ThreadScheduler::THREAD_COMMUNICATION, &block)
+    else
+      block.call
+    end
+  end
+
+  def self.pausing(thread, &block)
+    pause!(thread)
+    block.call
+    continue!(thread)
+  end
+
   def self.check(thread)
     case thread
     when :status_bar
@@ -101,6 +127,8 @@ class ThreadScheduler
       :alive
     when 3
       :alive
+    when 4
+      :pause
     else
       :dead
     end

@@ -19,10 +19,13 @@
 
 #define THREAD_STATUS_BAR 0
 #define THREAD_COMMUNICATION 1
+
 #define THREAD_STATUS_DEAD 0
 #define THREAD_STATUS_ALIVE 1
 #define THREAD_STATUS_COMMAND 2
 #define THREAD_STATUS_RESPONSE 3
+#define THREAD_STATUS_PAUSE 4
+
 #define THREAD_BLOCK 0
 #define THREAD_FREE 1
 
@@ -297,6 +300,46 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_thread_scheduler_s__pause(mrb_state *mrb, mrb_value self)
+{
+  mrb_int id = 0;
+
+  mrb_get_args(mrb, "i", &id);
+
+  if (id == THREAD_STATUS_BAR && StatusBarThread) {
+    context_sem_wait(StatusBarThread);
+    StatusBarThread->status = THREAD_STATUS_PAUSE;
+    context_sem_push(StatusBarThread);
+  } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
+    context_sem_wait(CommunicationThread);
+    CommunicationThread->status = THREAD_STATUS_PAUSE;
+    context_sem_push(CommunicationThread);
+  }
+
+  return mrb_true_value();
+}
+
+static mrb_value
+mrb_thread_scheduler_s__continue(mrb_state *mrb, mrb_value self)
+{
+  mrb_int id = 0;
+
+  mrb_get_args(mrb, "i", &id);
+
+  if (id == THREAD_STATUS_BAR && StatusBarThread) {
+    context_sem_wait(StatusBarThread);
+    StatusBarThread->status = THREAD_STATUS_ALIVE;
+    context_sem_push(StatusBarThread);
+  } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
+    context_sem_wait(CommunicationThread);
+    CommunicationThread->status = THREAD_STATUS_ALIVE;
+    context_sem_push(CommunicationThread);
+  }
+
+  return mrb_true_value();
+}
+
+static mrb_value
 mrb_thread_channel_s_channel_write(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0;
@@ -430,11 +473,14 @@ mrb_thread_scheduler_init(mrb_state* mrb)
   thread_scheduler = mrb_define_class(mrb , "ThreadScheduler" , mrb->object_class);
   thread_channel   = mrb_define_class_under(mrb, context, "ThreadChannel", mrb->object_class);
 
-  mrb_define_class_method(mrb , thread_scheduler , "_check"      , mrb_thread_scheduler_s__check   , MRB_ARGS_REQ(1));
-  mrb_define_class_method(mrb , thread_scheduler , "_start"      , mrb_thread_scheduler_s__start   , MRB_ARGS_REQ(1));
-  mrb_define_class_method(mrb , thread_scheduler , "_stop"       , mrb_thread_scheduler_s__stop    , MRB_ARGS_REQ(1));
-  mrb_define_class_method(mrb , thread_scheduler , "_command"    , mrb_thread_scheduler_s__command , MRB_ARGS_REQ(2));
-  mrb_define_class_method(mrb , thread_scheduler , "_execute"    , mrb_thread_scheduler_s__execute , MRB_ARGS_REQ(2));
+  mrb_define_class_method(mrb , thread_scheduler , "_check"    , mrb_thread_scheduler_s__check    , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_scheduler , "_start"    , mrb_thread_scheduler_s__start    , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_scheduler , "_stop"     , mrb_thread_scheduler_s__stop     , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_scheduler , "_pause"    , mrb_thread_scheduler_s__pause    , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_scheduler , "_continue" , mrb_thread_scheduler_s__continue , MRB_ARGS_REQ(1));
+
+  mrb_define_class_method(mrb , thread_scheduler , "_command"  , mrb_thread_scheduler_s__command  , MRB_ARGS_REQ(2));
+  mrb_define_class_method(mrb , thread_scheduler , "_execute"  , mrb_thread_scheduler_s__execute  , MRB_ARGS_REQ(2));
 
   mrb_define_class_method(mrb , thread_channel , "channel_write" , mrb_thread_channel_s_channel_write , MRB_ARGS_REQ(2));
   mrb_define_class_method(mrb , thread_channel , "channel_read"  , mrb_thread_channel_s_channel_read  , MRB_ARGS_REQ(1));

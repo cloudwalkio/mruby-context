@@ -65,6 +65,7 @@ class Context
       # TODO
       # DaFunk.setup_command_line
     end
+    DaFunk::PaymentChannel.client = Context::CommunicationChannel
     Device::Runtime.system_reload
   end
 

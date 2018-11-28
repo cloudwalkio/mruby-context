@@ -98,6 +98,8 @@ class ThreadScheduler
     else
       block.call
     end
+  ensure
+    Context::ThreadPubSub.publish("communication_update")
   end
 
   def self.pausing(thread, &block)

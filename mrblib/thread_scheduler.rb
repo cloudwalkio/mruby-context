@@ -89,7 +89,7 @@ class ThreadScheduler
   end
 
   def self.continue!(thread)
-    _pause(thread)
+    _continue(thread)
   end
 
   def self.pausing_communication(&block)

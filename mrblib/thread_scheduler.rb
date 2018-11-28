@@ -103,6 +103,7 @@ class ThreadScheduler
   def self.pausing(thread, &block)
     pause!(thread)
     block.call
+  ensure
     continue!(thread)
   end
 

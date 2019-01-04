@@ -58,6 +58,8 @@ class ThreadScheduler
     self._execute(id) do |str|
       if str == "connect"
         (!! DaFunk::PaymentChannel.client.connect(false)).to_s
+      elsif str == "Device::Network.connected?"
+        Device::Network.connected?
       else
         if DaFunk::PaymentChannel.client
           if str == "check"

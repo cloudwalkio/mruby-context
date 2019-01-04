@@ -92,8 +92,13 @@ class ThreadScheduler
     _continue(thread)
   end
 
+  def self.communication_thread?
+    DaFunk::PaymentChannel.client != Context::CommunicationChannel
+  end
+
   def self.pausing_communication(&block)
-    if DaFunk::PaymentChannel.client == Context::CommunicationChannel
+    Context::ThreadPubSub.publish("communication_update")
+    if ! self.communication_thread?
       pausing(ThreadScheduler::THREAD_COMMUNICATION, &block)
     else
       block.call

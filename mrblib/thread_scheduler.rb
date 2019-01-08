@@ -59,7 +59,7 @@ class ThreadScheduler
       if str == "connect"
         (!! DaFunk::PaymentChannel.client.connect(false)).to_s
       elsif str == "Device::Network.connected?"
-        (Device::Network.adapter.connected?).to_s
+        Device::Network.connected?
       else
         if DaFunk::PaymentChannel.client
           if str == "check"
@@ -144,3 +144,4 @@ class ThreadScheduler
     end
   end
 end
+

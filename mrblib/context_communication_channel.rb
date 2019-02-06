@@ -2,7 +2,23 @@ class Context
   class CommunicationChannel
     THREAD_COMMUNICATION = 1
 
+    class << self
+      attr_accessor :boot_time, :booting
+    end
+
+    self.boot_time = Time.now
+    self.booting   = true
+
     def initialize(client = nil)
+    end
+
+    def self.booting?
+      if self.booting
+        if (self.boot_time + 180) < Time.now
+          self.booting = false
+        end
+      end
+      self.booting
     end
 
     def self.client

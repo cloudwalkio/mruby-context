@@ -71,18 +71,23 @@ class ThreadScheduler
 
   def self.execute(id)
     self._execute(id) do |str|
-      if str == "connect"
         (!! DaFunk::PaymentChannel.client.connect(false)).to_s
-      else
-        if DaFunk::PaymentChannel.client
-          if str == "check"
-            DaFunk::PaymentChannel.client.check(false).to_s
-          else
-            DaFunk::PaymentChannel.client.send(str).to_s
-          end
+      begin
+        if str == "connect"
         else
-          "false"
+          if DaFunk::PaymentChannel.client
+            if str == "check"
+              DaFunk::PaymentChannel.client.check(false).to_s
+            else
+              DaFunk::PaymentChannel.client.send(str).to_s
+            end
+          else
+            "false"
+          end
         end
+      rescue => e
+        ContextLog.exception(e, e.backtrace, "Thread [#{id}] execution error")
+        "cache"
       end
     end
   end

@@ -16,6 +16,10 @@ class ThreadScheduler
     stop_status_bar
     stop_communication
   end
+
+  def self.keep_alive
+    self.spawn_communication if self.die?(:communication)
+    self.spawn_status_bar if self.die?(:status_bar)
   end
 
   def self.spawn_status_bar

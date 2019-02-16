@@ -13,16 +13,9 @@ class ThreadScheduler
   end
 
   def self.stop
-    if self.status_bar
-      _stop(THREAD_STATUS_BAR)
-      self.status_bar.join
-      self.status_bar = nil
-    end
-    if self.communication
-      _stop(THREAD_COMMUNICATION)
-      self.communication.join
-      self.communication = nil
-    end
+    stop_status_bar
+    stop_communication
+  end
   end
 
   def self.spawn_status_bar
@@ -35,11 +28,27 @@ class ThreadScheduler
     end
   end
 
+  def self.stop_status_bar
+    if self.status_bar
+      _stop(THREAD_STATUS_BAR)
+      self.status_bar.join
+      self.status_bar = nil
+    end
+  end
+
   def self.spawn_communication
     _start(THREAD_COMMUNICATION)
     str = "Context.start('main', '#{Device.adapter}', '{\"initialize\":\"communication\"}')"
     self.communication = Thread.new do
       mrb_eval(str)
+    end
+  end
+
+  def self.stop_communication
+    if self.communication
+      _stop(THREAD_COMMUNICATION)
+      self.communication.join
+      self.communication = nil
     end
   end
 

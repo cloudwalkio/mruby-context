@@ -24,6 +24,7 @@ class ThreadScheduler
       str = "Context.start('main', '#{Device.adapter}', '{\"initialize\":\"status_bar\"}')"
       self.status_bar = Thread.new do
         mrb_eval(str)
+        _stop(THREAD_STATUS_BAR)
       end
     end
   end
@@ -41,6 +42,7 @@ class ThreadScheduler
     str = "Context.start('main', '#{Device.adapter}', '{\"initialize\":\"communication\"}')"
     self.communication = Thread.new do
       mrb_eval(str)
+      _stop(THREAD_COMMUNICATION)
     end
   end
 

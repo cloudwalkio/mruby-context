@@ -8,8 +8,8 @@ class ThreadScheduler
   self.cache = Hash.new
 
   def self.start
-    self.dispatch_status_bar
-    self.dispatch_communication
+    self.spawn_status_bar
+    self.spawn_communication
   end
 
   def self.stop
@@ -25,7 +25,7 @@ class ThreadScheduler
     end
   end
 
-  def self.dispatch_status_bar
+  def self.spawn_status_bar
     if DaFunk::Helper::StatusBar.valid?
       _start(THREAD_STATUS_BAR)
       str = "Context.start('main', '#{Device.adapter}', '{\"initialize\":\"status_bar\"}')"
@@ -35,7 +35,7 @@ class ThreadScheduler
     end
   end
 
-  def self.dispatch_communication
+  def self.spawn_communication
     _start(THREAD_COMMUNICATION)
     str = "Context.start('main', '#{Device.adapter}', '{\"initialize\":\"communication\"}')"
     self.communication = Thread.new do

@@ -403,7 +403,9 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, try = 1;
   mrb_value command;
-  char response[256] = {0x00};
+  char response[256];
+
+  memset(response, 0, sizeof(response));
 
   mrb_get_args(mrb, "iS", &id, &command);
 
@@ -420,7 +422,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 
     context_sem_wait(CommunicationThread);
     if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
-      memcpy(response, CommunicationThread->response, sizeof(response));
+      memcpy(response, CommunicationThread->response, strlen(CommunicationThread->response));
     } else {
       strcpy(response, "cache");
     }
@@ -430,10 +432,10 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
     memset(CommunicationThread->command, 0, sizeof(CommunicationThread->command));
     context_sem_push(CommunicationThread);
 
-    return mrb_str_new_cstr(mrb, response);
+    return mrb_str_new(mrb, response, strlen(response));
   }
 
-  return mrb_str_new_cstr(mrb, "cache");
+  return mrb_str_new(mrb, "cache", 5);
 }
 
 static mrb_value

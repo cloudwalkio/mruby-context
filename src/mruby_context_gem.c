@@ -113,10 +113,10 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "S", &code);
 
-  /*context_memprof_init(&allocf, &ud);*/
+  context_memprof_init(&allocf, &ud);
 
-  /*mrb2 = mrb_open_allocf(allocf, ud);*/
-  mrb2 = mrb_open();
+  mrb2 = mrb_open_allocf(allocf, ud);
+  /*mrb2 = mrb_open();*/
   c = mrbc_context_new(mrb2);
 
   ret = mrb_load_string_cxt(mrb2, RSTRING_PTR(code), c);

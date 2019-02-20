@@ -137,11 +137,15 @@ class ThreadScheduler
   def self.check(thread)
     case thread
     when :status_bar
-      _parse(_check(THREAD_STATUS_BAR))
+      if DaFunk::Helper::StatusBar.valid?
+        _parse(_check(THREAD_STATUS_BAR))
+      end
     when :communication
       _parse(_check(THREAD_COMMUNICATION))
     else
-      _parse(_check(THREAD_STATUS_BAR))
+      if DaFunk::Helper::StatusBar.valid?
+        _parse(_check(THREAD_STATUS_BAR))
+      end
     end
   end
 

@@ -421,7 +421,7 @@ schedule_command(int id, int tries, int timeout_micro) {
 static mrb_value
 mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0, try = 1, ret = 0;
+  mrb_int id = 0, try = 1;
   mrb_value command;
   char response[256];
 

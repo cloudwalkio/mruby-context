@@ -34,6 +34,7 @@ class Context
     end
 
     def self.close
+      ThreadScheduler.cache_clear!
       ThreadScheduler.command(THREAD_COMMUNICATION, "close")
     end
 

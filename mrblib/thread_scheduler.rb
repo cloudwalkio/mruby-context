@@ -17,6 +17,10 @@ class ThreadScheduler
     stop_communication
   end
 
+  def self.cache_clear!
+    self.cache = Hash.new
+  end
+
   def self.keep_alive
     self.spawn_communication if self.die?(:communication)
     self.spawn_status_bar if self.die?(:status_bar)
@@ -69,6 +73,7 @@ class ThreadScheduler
     end
   end
 
+  # TODO Refactor to send mruby irep binary
   def self.execute(id)
     self._execute(id) do |str|
       begin

@@ -398,10 +398,30 @@ mrb_thread_channel_s_queue_read(mrb_state *mrb, mrb_value self)
     return mrb_nil_value();
 }
 
+static int
+schedule_command(int id, int tries, int timeout_micro) {
+  mrb_int try = 1;
+
+  if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
+    context_sem_wait(CommunicationThread);
+    CommunicationThread->status = THREAD_STATUS_ALIVE;
+    context_sem_push(CommunicationThread);
+  }
+
+  if (id == THREAD_COMMUNICATION && CommunicationThread) {
+    while(CommunicationThread->status != THREAD_STATUS_ALIVE && try <= tries) {
+      usleep(timeout_micro);
+      try++;
+    }
+    if (CommunicationThread->status == THREAD_STATUS_ALIVE) return 0;
+  }
+  return -1;
+}
+
 static mrb_value
 mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0, try = 1;
+  mrb_int id = 0, try = 1, ret = 0;
   mrb_value command;
   char response[256];
 
@@ -409,7 +429,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "iS", &id, &command);
 
-  if (id == THREAD_COMMUNICATION && CommunicationThread && CommunicationThread->status == THREAD_STATUS_ALIVE) {
+  if (schedule_command(id, 20, 10000) == 0) {
     context_sem_wait(CommunicationThread);
     memcpy(CommunicationThread->command, RSTRING_PTR(command), RSTRING_LEN(command));
     CommunicationThread->status = THREAD_STATUS_COMMAND;
@@ -451,10 +471,10 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
   }
 
   if (id == THREAD_COMMUNICATION && CommunicationThread && CommunicationThread->status == THREAD_STATUS_COMMAND) {
-    context_sem_wait(CommunicationThread);
     /*TODO Scalone check gc arena sabe approach lib/mruby/mrbgems/mruby-string-ext/src/string.c:592*/
     response_object = mrb_yield(mrb, block, mrb_str_new_cstr(mrb, CommunicationThread->command));
 
+    context_sem_wait(CommunicationThread);
     if (mrb_string_p(response_object)) {
       memcpy(CommunicationThread->response, RSTRING_PTR(response_object), RSTRING_LEN(response_object));
     }

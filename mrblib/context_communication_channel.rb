@@ -3,7 +3,7 @@ class Context
     THREAD_COMMUNICATION = 1
 
     class << self
-      attr_accessor :boot_time, :booting
+      attr_accessor :boot_time, :booting, :connecting, :connecting_time
     end
 
     self.boot_time = Time.now
@@ -39,15 +39,19 @@ class Context
     end
 
     def self.connected?
-      ThreadScheduler.command(THREAD_COMMUNICATION, "connected?")
+      self.connection_cache do
+        ThreadScheduler.command(THREAD_COMMUNICATION, "connected?")
+      end
     end
 
     def self.handshake?
-      if self.connected?
-        timeout = Time.now + Device::Setting.tcp_recv_timeout.to_i
-        loop do
-          break(true) if ThreadScheduler.command(THREAD_COMMUNICATION, "handshake?")
-          break if Time.now > timeout || getc(200) == Device::IO::CANCEL
+      self.connection_cache do
+        if self.connected?
+          timeout = Time.now + Device::Setting.tcp_recv_timeout.to_i
+          loop do
+            break(true) if ThreadScheduler.command(THREAD_COMMUNICATION, "handshake?")
+            break if Time.now > timeout || getc(200) == Device::IO::CANCEL
+          end
         end
       end
     end
@@ -57,6 +61,8 @@ class Context
     end
 
     def self.connect(options = nil)
+      self.connecting = true
+      self.connecting_time = Time.now + 15
       if ThreadScheduler.command(THREAD_COMMUNICATION, "connect")
         self
       end
@@ -76,6 +82,15 @@ class Context
         return :primary_communication
       end
       message
+    end
+
+    def self.connection_cache(&block)
+      if self.connecting && self.connecting_time > Time.now
+        true
+      else
+        self.connecting = false
+        block.call
+      end
     end
   end
 end

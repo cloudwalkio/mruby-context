@@ -563,7 +563,7 @@ int publish(char *buf, int len)
   return ret;
 }
 
-int listen(int id, char *buf)
+int pubsub_listen(int id, char *buf)
 {
   if (connThreadEvents[id] != NULL)
     return thread_channel_dequeue(connThreadEvents[id], buf);
@@ -585,7 +585,7 @@ mrb_thread_pub_sub_s_listen(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "i", &id);
 
-  len = listen(id, buf);
+  len = pubsub_listen(id, buf);
 
   if (len > 0)
     return mrb_str_new(mrb, buf, len);

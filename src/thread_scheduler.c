@@ -124,7 +124,9 @@ void context_channel_sem_push(queueMessage *threadControl)
 int thread_channel_enqueue_send(char *buf, int len)
 {
   struct message *newMessage;
+  char trashBuf[12000]= {0x00};
 
+  thread_channel_dequeue_recv(trashBuf);
   if (len > 0) {
     context_channel_sem_wait(connThreadQueueSend);
     newMessage = (message *)malloc(sizeof(message));

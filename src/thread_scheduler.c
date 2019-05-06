@@ -188,7 +188,7 @@ int thread_channel_enqueue_recv(char *buf, int len)
 
     /*Copy message*/
     memset(newMessage->data, 0, sizeof(newMessage->data));
-    strcpy(newMessage->data, buf);
+    memcpy(newMessage->data, buf, len);
     newMessage->len = len;
 
     if (connThreadQueueRecv->size == 0) {

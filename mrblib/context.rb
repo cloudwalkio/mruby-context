@@ -87,7 +87,7 @@ class Context
       puts "UNEXPECTED ERROR"
       puts "CONTACT THE ADMINISTRATOR, PROBLEM LOGGED WITH SUCCESS."
     end
-    getc(0)
+    getc(5000)
   end
 
   def self.clear_defined?

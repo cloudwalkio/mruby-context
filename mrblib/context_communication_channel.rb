@@ -76,12 +76,8 @@ class Context
 
     def self.check
       if Device::Network.connected? && self.connected? && self.handshake?
-        message = self.read
+        self.read
       end
-      if message.nil? && DaFunk::ConnectionManagement.primary_try?
-        return :primary_communication
-      end
-      message
     end
 
     def self.connection_cache(&block)

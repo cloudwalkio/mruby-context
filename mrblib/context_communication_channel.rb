@@ -33,6 +33,10 @@ class Context
       ThreadChannel.channel_read(THREAD_COMMUNICATION)
     end
 
+    def self.code
+      ThreadScheduler.command(THREAD_COMMUNICATION, "code")
+    end
+
     def self.close
       ThreadScheduler.cache_clear!
       ThreadScheduler.command(THREAD_COMMUNICATION, "close")

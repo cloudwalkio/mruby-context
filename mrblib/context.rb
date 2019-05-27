@@ -27,6 +27,7 @@ class Context
   end
 
   def self.ruby(app, platform, json)
+    ContextLog.info "context self.ruby #{app}-#{json}"
     $LOAD_PATH = ["./#{app}"]
 
     if Object.const_defined? :Platform
@@ -46,6 +47,7 @@ class Context
   end
 
   def self.setup(app, platform)
+    ContextLog.info "context self.setup #{app}-#{platform}"
     # Library responsable for common code and API syntax for the user
     if File.exist?("./#{app}/da_funk.mrb")
       require "da_funk.mrb"
@@ -67,6 +69,28 @@ class Context
     end
     DaFunk::PaymentChannel.client = Context::CommunicationChannel
     Device::Runtime.system_reload
+  end
+
+  def self.load_apps(app, platform)
+    ContextLog.info "context self.load_apps #{app}-#{platform}"
+    $LOAD_PATH = ["./#{app}"]
+
+    if Object.const_defined? :Platform
+      Platform.boot if Platform.respond_to?(:boot)
+    end
+    self.setup(app, platform)
+  end
+
+  def self.execute_app(app, json = nil)
+    ContextLog.info "context self.execute_app #{app}-#{json}"
+    $LOAD_PATH = ["./#{app}"]
+    Device::System.klass = app if require "main.mrb"
+
+    if json.nil? || json.empty?
+      Main.call
+    else
+      Main.call(json)
+    end
   end
 
   def self.teardown

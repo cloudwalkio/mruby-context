@@ -7,12 +7,20 @@ class Context
   end
   self.env = ENV_DEVELOPMENT
 
-  def self.start(app = "main", platform = nil, json = nil)
+  def self.execute(app = "main", platform = nil, json = nil)
     if app.split(".").last == "posxml"
       posxml(app, platform, json)
     else
-      ruby(app, platform, json)
+      ruby(app, platform, json, true)
     end
+  rescue => exception
+    self.treat(exception)
+  ensure
+    self.teardown
+  end
+
+  def self.start(app = "main", platform = nil, json = nil)
+    ruby(app, platform, json, false)
   rescue => exception
     self.treat(exception)
   ensure
@@ -26,28 +34,29 @@ class Context
     PosxmlInterpreter.new(file, json).start
   end
 
-  def self.ruby(app, platform, json)
-    ContextLog.info "context self.ruby #{app}-#{json}"
-    $LOAD_PATH = ["./#{app}"]
+  def self.ruby(app, platform, json, exec = true)
+    unless exec
+      $LOAD_PATH = ["./#{app}"]
 
-    if Object.const_defined? :Platform
-      Platform.boot if Platform.respond_to?(:boot)
-    end
+      if Object.const_defined? :Platform
+        Platform.boot if Platform.respond_to?(:boot)
+      end
 
-    self.setup(app, platform)
-    Device::System.klass = app if require "main.mrb"
-
-    # Main should have implement method call
-    #  method call was need to avoid memory leak on irep table
-    if json.nil? || json.empty?
-      Main.call
+      self.setup(app, platform)
+      Device::System.klass = app if require "main.mrb"
     else
-      Main.call(json)
+      #Device::System.klass = app
+      # Main should have implement method call
+      #  method call was need to avoid memory leak on irep table
+      if json.nil? || json.empty?
+        Main.call
+      else
+        Main.call(json)
+      end
     end
   end
 
   def self.setup(app, platform)
-    ContextLog.info "context self.setup #{app}-#{platform}"
     # Library responsable for common code and API syntax for the user
     if File.exist?("./#{app}/da_funk.mrb")
       require "da_funk.mrb"
@@ -69,28 +78,6 @@ class Context
     end
     DaFunk::PaymentChannel.client = Context::CommunicationChannel
     Device::Runtime.system_reload
-  end
-
-  def self.load_apps(app, platform)
-    ContextLog.info "context self.load_apps #{app}-#{platform}"
-    $LOAD_PATH = ["./#{app}"]
-
-    if Object.const_defined? :Platform
-      Platform.boot if Platform.respond_to?(:boot)
-    end
-    self.setup(app, platform)
-  end
-
-  def self.execute_app(app, json = nil)
-    ContextLog.info "context self.execute_app #{app}-#{json}"
-    $LOAD_PATH = ["./#{app}"]
-    Device::System.klass = app if require "main.mrb"
-
-    if json.nil? || json.empty?
-      Main.call
-    else
-      Main.call(json)
-    end
   end
 
   def self.teardown

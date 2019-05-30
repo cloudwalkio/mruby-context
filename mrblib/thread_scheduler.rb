@@ -29,7 +29,8 @@ class ThreadScheduler
   def self.spawn_status_bar
     if DaFunk::Helper::StatusBar.valid?
       _start(THREAD_STATUS_BAR)
-      str = "Context.start('main', '#{Device.adapter}', '{\"initialize\":\"status_bar\"}')"
+      str = "Context.start('main', '#{Device.adapter}');"
+      str << "Context.execute('main', '#{Device.adapter}', '{\"initialize\":\"status_bar\"}')"
       self.status_bar = Thread.new do
         mrb_eval(str)
         _stop(THREAD_STATUS_BAR)
@@ -47,7 +48,8 @@ class ThreadScheduler
 
   def self.spawn_communication
     _start(THREAD_COMMUNICATION)
-    str = "Context.start('main', '#{Device.adapter}', '{\"initialize\":\"communication\"}')"
+    str = "Context.start('main', '#{Device.adapter}'); "
+    str << "Context.execute('main', '#{Device.adapter}', '{\"initialize\":\"communication\"}')"
     self.communication = Thread.new do
       mrb_eval(str)
       _stop(THREAD_COMMUNICATION)

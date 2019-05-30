@@ -32,7 +32,7 @@ class ThreadScheduler
       str = "Context.start('main', '#{Device.adapter}');"
       str << "Context.execute('main', '#{Device.adapter}', '{\"initialize\":\"status_bar\"}')"
       self.status_bar = Thread.new do
-        mrb_eval(str)
+        mrb_eval(str, 'thread_status_bar')
         _stop(THREAD_STATUS_BAR)
       end
     end
@@ -51,7 +51,7 @@ class ThreadScheduler
     str = "Context.start('main', '#{Device.adapter}'); "
     str << "Context.execute('main', '#{Device.adapter}', '{\"initialize\":\"communication\"}')"
     self.communication = Thread.new do
-      mrb_eval(str)
+      mrb_eval(str, 'thread_communication')
       _stop(THREAD_COMMUNICATION)
     end
   end

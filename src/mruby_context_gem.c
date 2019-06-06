@@ -10,8 +10,17 @@
 #include "mruby/dump.h"
 
 #include "mruby/error.h"
+#include "mruby/ext/context_log.h"
 
 #define DONE mrb_gc_arena_restore(mrb, 0);
+
+typedef struct instance {
+  char application[256];
+  mrbc_context *context;
+  mrb_state *mrb;
+} instance;
+
+static struct instance *instances[20];
 
 struct memheader {
   size_t len; /* size of obj (not including len) */
@@ -100,26 +109,57 @@ context_memprof_init(mrb_allocf *funp, void **udp)
   *udp  = ud;
 }
 
+static instance*
+mrb_alloc_instance(char *application, int application_size, mrb_state *mrb)
+{
+  void *ud;
+  mrb_allocf allocf;
+  instance *current;
+  int i=0;
+  int instance_free_spot = -1;
+
+  while (i < 20) {
+    if (instances[i] != NULL && strcmp(instances[i]->application, application) == 0) {
+      return instances[i];
+    }
+    if (instance_free_spot == -1 && instances[i] == NULL) instance_free_spot = i;
+    i++;
+  }
+
+  current = (instance *)malloc(sizeof(instance));
+  context_memprof_init(&allocf, &ud);
+
+  /*mrb = mrb_open();*/
+  current->mrb = mrb_open_allocf(allocf, ud);
+  current->context = mrbc_context_new(current->mrb);
+  memset(current->application, 0, sizeof(current->application));
+
+  memcpy(current->application, application, application_size);
+
+  instances[instance_free_spot] = current;
+
+  return current;
+}
+
+static void
+mrb_free_instance(instance *current)
+{
+  mrbc_context_free(current->mrb, current->context);
+  mrb_close(current->mrb);
+}
+
 static mrb_value
 mrb_mrb_eval(mrb_state *mrb, mrb_value self)
 {
-  mrb_state *mrb2=NULL;
-  mrbc_context *c;
-  mrb_allocf allocf;
-  mrb_value code, ret, mrb_ret;
-  void *ud;
+  mrb_value code, ret, mrb_ret, application;
+  instance *current;
 
   mrb_ret = mrb_nil_value();
+  mrb_get_args(mrb, "S|S", &code, &application);
 
-  mrb_get_args(mrb, "S", &code);
+  current = mrb_alloc_instance(RSTRING_PTR(application), RSTRING_LEN(application), mrb);
 
-  context_memprof_init(&allocf, &ud);
-
-  mrb2 = mrb_open_allocf(allocf, ud);
-  /*mrb2 = mrb_open();*/
-  c = mrbc_context_new(mrb2);
-
-  ret = mrb_load_string_cxt(mrb2, RSTRING_PTR(code), c);
+  ret = mrb_load_string_cxt(current->mrb, RSTRING_PTR(code), current->context);
 
   if (mrb_undef_p(ret))
     mrb_ret = mrb_nil_value();
@@ -128,10 +168,27 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
   else
     mrb_ret = ret;
 
-  mrbc_context_free(mrb2, c);
-  mrb_close(mrb2);
-
   return mrb_ret;
+}
+
+static mrb_value
+mrb_mrb_stop(mrb_state *mrb, mrb_value self)
+{
+  mrb_value application;
+  int i = 0;
+
+  mrb_get_args(mrb, "S", &application);
+
+  while (i < 20) {
+    if (instances[i] != NULL && strcmp(instances[i]->application, RSTRING_PTR(application)) == 0) {
+      mrb_free_instance(instances[i]);
+      instances[i] = NULL;
+      break;
+    }
+    i++;
+  }
+
+  return mrb_nil_value();
 }
 
 static mrb_value
@@ -200,7 +257,8 @@ mrb_mruby_context_gem_init(mrb_state* mrb)
   krn = mrb->kernel_module;
   vm  = mrb_define_module(mrb, "Vm");
 
-  mrb_define_method(mrb       , krn , "mrb_eval"       , mrb_mrb_eval            , MRB_ARGS_REQ(1));
+  mrb_define_method(mrb       , krn , "mrb_eval"       , mrb_mrb_eval            , MRB_ARGS_REQ(1) | MRB_ARGS_OPT(1));
+  mrb_define_method(mrb       , krn , "mrb_stop"       , mrb_mrb_stop            , MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb , vm  , "mallocs"        , mrb_vm_s_mallocs        , MRB_ARGS_NONE());
   mrb_define_class_method(mrb , vm  , "reallocs"       , mrb_vm_s_reallocs       , MRB_ARGS_NONE());
   mrb_define_class_method(mrb , vm  , "frees"          , mrb_vm_s_frees          , MRB_ARGS_NONE());

@@ -110,13 +110,17 @@ context_memprof_init(mrb_allocf *funp, void **udp)
 }
 
 static instance*
-mrb_alloc_instance(char *application, int application_size, mrb_state *mrb)
+mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 {
   void *ud;
   mrb_allocf allocf;
   instance *current;
   int i=0;
   int instance_free_spot = -1;
+  char application[256] = "";
+
+  memset(application, 0, sizeof(application));
+  memcpy(application, application_name, application_size);
 
   while (i < 20) {
     if (instances[i] != NULL && strcmp(instances[i]->application, application) == 0) {

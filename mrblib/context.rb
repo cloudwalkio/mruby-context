@@ -48,10 +48,10 @@ class Context
       #Device::System.klass = app
       # Main should have implement method call
       #  method call was need to avoid memory leak on irep table
-      if json.nil? || json.empty?
-        Main.call
-      else
+      begin
         Main.call(json)
+      rescue ArgumentError
+        Main.call
       end
     end
   end

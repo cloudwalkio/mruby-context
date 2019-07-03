@@ -42,7 +42,7 @@ typedef struct thread {
 
 typedef struct message {
   int len;
-  char data[4096];
+  char data[51200];
   struct message *front;
   struct message *rear;
 } message;
@@ -361,7 +361,7 @@ static mrb_value
 mrb_thread_channel_s_channel_read(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0;
-  char buf[12000] = {0x00};
+  char buf[51200] = {0x00};
 
   mrb_get_args(mrb, "i", &id);
 
@@ -389,7 +389,7 @@ static mrb_value
 mrb_thread_channel_s_queue_read(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0;
-  char buf[12000]= {0x00};
+  char buf[51200] = {0x00};
 
   mrb_get_args(mrb, "i", &id);
 
@@ -583,7 +583,7 @@ static mrb_value
 mrb_thread_pub_sub_s_listen(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0;
-  char buf[12000] = {0x00};
+  char buf[51200] = {0x00};
 
   mrb_get_args(mrb, "i", &id);
 

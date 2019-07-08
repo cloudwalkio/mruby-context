@@ -45,6 +45,8 @@ class Context
       self.setup(app, platform)
       Device::System.klass = app if require "main.mrb"
     else
+      # Necessary to send information to communication class
+      Device::System.klass = app
       Device::Runtime.system_reload
       # Main should have implement method call
       #  method call was need to avoid memory leak on irep table

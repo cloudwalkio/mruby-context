@@ -3,7 +3,7 @@ class Context
     THREAD_COMMUNICATION = 1
 
     class << self
-      attr_accessor :boot_time, :booting, :connecting, :connecting_time
+      attr_accessor :boot_time, :booting, :connecting, :connecting_time, :app
     end
 
     self.boot_time = Time.now
@@ -23,6 +23,11 @@ class Context
 
     def self.client
       true
+    end
+
+    def self.app=(application)
+      ThreadScheduler.command(THREAD_COMMUNICATION, "app=#{application}")
+      @app = application
     end
 
     def self.write(value)

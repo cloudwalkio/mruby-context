@@ -64,12 +64,13 @@ class ThreadScheduler
     end
   end
 
-  def self.command(id, string)
+  def self.command(id, string, value = nil)
     self.cache[id] ||= {}
 
-    value = ThreadScheduler._command(id, string)
-    if value != "cache"
-      self.cache[id][string] = eval(value)
+    buffer = value ? "#{string}=#{value}" : string
+    result = ThreadScheduler._command(id, buffer)
+    if result != "cache"
+      self.cache[id][string] = eval(result)
     else
       self.cache[id][string] ||= false
     end
@@ -81,6 +82,9 @@ class ThreadScheduler
       begin
         if str == "connect"
           (!! DaFunk::PaymentChannel.connect(false)).to_s
+        elsif str.include?("=")
+          method, value = str.split("=")
+          DaFunk::PaymentChannel.send("#{method}=", value)
         else
           if DaFunk::PaymentChannel.client
             if str == "check"

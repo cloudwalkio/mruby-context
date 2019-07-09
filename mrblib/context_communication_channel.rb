@@ -31,7 +31,11 @@ class Context
     end
 
     def self.write(value)
-      ThreadChannel.channel_write(THREAD_COMMUNICATION, value)
+      if Object.const_defined?(:Cloudwalk) && value.is_a?(Cloudwalk::HttpEvent)
+        ThreadChannel.channel_write(THREAD_COMMUNICATION, value.message)
+      else
+        ThreadChannel.channel_write(THREAD_COMMUNICATION, value)
+      end
     end
 
     def self.read

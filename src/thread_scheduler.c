@@ -404,18 +404,20 @@ static int
 schedule_command(int id, int tries, int timeout_micro) {
   mrb_int try = 1;
 
-  if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
-    context_sem_wait(CommunicationThread);
-    CommunicationThread->status = THREAD_STATUS_ALIVE;
-    context_sem_push(CommunicationThread);
-  }
-
-  if (id == THREAD_COMMUNICATION && CommunicationThread) {
-    while(CommunicationThread->status != THREAD_STATUS_ALIVE && try <= tries) {
-      usleep(timeout_micro);
-      try++;
+  if (CommunicationThread && CommunicationThread->status != THREAD_STATUS_DEAD) {
+    if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
+      context_sem_wait(CommunicationThread);
+      CommunicationThread->status = THREAD_STATUS_ALIVE;
+      context_sem_push(CommunicationThread);
     }
-    if (CommunicationThread->status == THREAD_STATUS_ALIVE) return 0;
+
+    if (id == THREAD_COMMUNICATION && CommunicationThread) {
+      while(CommunicationThread->status != THREAD_STATUS_ALIVE && try <= tries) {
+        usleep(timeout_micro);
+        try++;
+      }
+      if (CommunicationThread->status == THREAD_STATUS_ALIVE) return 0;
+    }
   }
   return -1;
 }

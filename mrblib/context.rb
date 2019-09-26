@@ -11,6 +11,7 @@ class Context
     if app.split(".").last == "posxml"
       posxml(app, platform, json)
     else
+      start(app, platform, json)
       ruby(app, platform, json, true)
     end
   rescue => exception

@@ -113,17 +113,12 @@ static instance*
 mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 {
   void *ud;
-  mrb_allocf allocf;
   instance *current;
   int i=0;
   int instance_free_spot = -1;
-  char application[256] = "";
-
-  memset(application, 0, sizeof(application));
-  memcpy(application, application_name, application_size);
 
   while (i < 20) {
-    if (instances[i] != NULL && strcmp(instances[i]->application, application) == 0) {
+    if (instances[i] != NULL && strcmp(instances[i]->application, application_name) == 0) {
       return instances[i];
     }
     if (instance_free_spot == -1 && instances[i] == NULL) instance_free_spot = i;
@@ -131,14 +126,13 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
   }
 
   current = (instance *)malloc(sizeof(instance));
-  context_memprof_init(&allocf, &ud);
 
-  /*mrb = mrb_open();*/
-  current->mrb = mrb_open_allocf(allocf, ud);
+  current->mrb = mrb_open();
   current->context = mrbc_context_new(current->mrb);
-  memset(current->application, 0, sizeof(current->application));
-
-  memcpy(current->application, application, application_size);
+  current->context->capture_errors = TRUE;
+  current->context->no_optimize = TRUE;
+  memset(current->application, 0, 256);
+  strcpy(current->application, application_name);
 
   instances[instance_free_spot] = current;
 
@@ -150,6 +144,7 @@ mrb_free_instance(instance *current)
 {
   mrbc_context_free(current->mrb, current->context);
   mrb_close(current->mrb);
+  free(current);
 }
 
 static mrb_value
@@ -162,7 +157,6 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "S|S", &code, &application);
 
   current = mrb_alloc_instance(RSTRING_PTR(application), RSTRING_LEN(application), mrb);
-
   ret = mrb_load_string_cxt(current->mrb, RSTRING_PTR(code), current->context);
 
   if (mrb_undef_p(ret))

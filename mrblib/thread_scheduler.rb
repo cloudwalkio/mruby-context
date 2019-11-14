@@ -68,7 +68,7 @@ class ThreadScheduler
     self.cache[id] ||= {}
 
     buffer = value ? "#{string}=#{value}" : string
-    result = ThreadScheduler._command(id, buffer)
+    result = self._command(id, buffer)
     if result != "cache"
       self.cache[id][string] = eval(result)
     else
@@ -131,7 +131,7 @@ class ThreadScheduler
   def self.pausing_communication(&block)
     Context::ThreadPubSub.publish("communication_update")
     if ! self.communication_thread?
-      pausing(ThreadScheduler::THREAD_COMMUNICATION, &block)
+      pausing(THREAD_COMMUNICATION, &block)
     else
       block.call
     end
@@ -177,5 +177,9 @@ class ThreadScheduler
       :dead
     end
   end
+end
+
+class Context
+  ThreadScheduler = ::ThreadScheduler
 end
 

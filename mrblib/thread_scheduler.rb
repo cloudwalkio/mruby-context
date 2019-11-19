@@ -85,7 +85,7 @@ class ThreadScheduler
         elsif str.include?("=")
           method, value = str.split("=")
           DaFunk::PaymentChannel.send("#{method}=", value)
-          true
+          "true"
         else
           if DaFunk::PaymentChannel.client
             if str == "check"

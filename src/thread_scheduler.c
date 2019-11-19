@@ -405,12 +405,19 @@ schedule_command(int id, int tries, int timeout_micro) {
   mrb_int try = 1;
 
   if (CommunicationThread && CommunicationThread->status != THREAD_STATUS_DEAD) {
+    /*Wait for thread that call command collect the response*/
+    while(CommunicationThread->status == THREAD_STATUS_RESPONSE && try <= tries) {
+      usleep(timeout_micro);
+      try++;
+    }
+
     if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
       context_sem_wait(CommunicationThread);
       CommunicationThread->status = THREAD_STATUS_ALIVE;
       context_sem_push(CommunicationThread);
     }
 
+    try = 1;
     if (id == THREAD_COMMUNICATION && CommunicationThread) {
       while(CommunicationThread->status != THREAD_STATUS_ALIVE && try <= tries) {
         usleep(timeout_micro);

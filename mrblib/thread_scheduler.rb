@@ -72,7 +72,7 @@ class ThreadScheduler
     if result != "cache"
       self.cache[id][string] = eval(result)
     else
-      self.cache[id][string] ||= false
+      self.cache[id][string] ||= nil
     end
   end
 

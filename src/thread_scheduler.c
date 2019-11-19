@@ -435,6 +435,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 
   if (schedule_command(id, 20, 10000) == 0) {
     context_sem_wait(CommunicationThread);
+    memset(CommunicationThread->command, 0, sizeof(CommunicationThread->command));
     memcpy(CommunicationThread->command, RSTRING_PTR(command), RSTRING_LEN(command));
     CommunicationThread->status = THREAD_STATUS_COMMAND;
     context_sem_push(CommunicationThread);

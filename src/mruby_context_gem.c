@@ -157,7 +157,7 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "S|S", &code, &application);
 
   current = mrb_alloc_instance(RSTRING_PTR(application), RSTRING_LEN(application), mrb);
-  ret = mrb_load_string_cxt(current->mrb, RSTRING_PTR(code), current->context);
+  ret = mrb_load_nstring_cxt(current->mrb, RSTRING_PTR(code), RSTRING_LEN(code), current->context);
 
   if (mrb_undef_p(ret))
     mrb_ret = mrb_nil_value();

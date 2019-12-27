@@ -129,14 +129,11 @@ class ThreadScheduler
   end
 
   def self.pausing_communication(&block)
-    Context::ThreadPubSub.publish("communication_update")
     if ! self.communication_thread?
       pausing(THREAD_COMMUNICATION, &block)
     else
       block.call
     end
-  ensure
-    Context::ThreadPubSub.publish("communication_update")
   end
 
   def self.pausing(thread, &block)

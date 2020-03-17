@@ -433,8 +433,8 @@ schedule_command(int id, int tries, int timeout_micro) {
     }
 
     if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
-      context_sem_wait(CommunicationThread);
-      CommunicationThread->status = THREAD_STATUS_ALIVE;
+      context_sem_wait(CommunicationThread, 0);
+      if (CommunicationThread->status == THREAD_STATUS_RESPONSE) CommunicationThread->status = THREAD_STATUS_ALIVE;
       context_sem_push(CommunicationThread);
     }
 

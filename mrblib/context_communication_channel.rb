@@ -1,6 +1,7 @@
 class Context
   class CommunicationChannel
-    THREAD_COMMUNICATION = 1
+    THREAD_EXTERNAL_COMMUNICATION = :communication
+    THREAD_INTERNAL_COMMUNICATION = 1
 
     class << self
       attr_accessor :boot_time, :booting, :connecting, :connecting_time, :app
@@ -26,34 +27,35 @@ class Context
     end
 
     def self.app=(application)
-      ThreadScheduler.command(THREAD_COMMUNICATION, "app=#{application}")
+      ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "app=#{application}")
       @app = application
     end
 
     def self.write(value)
       if Object.const_defined?(:Cloudwalk) && value.is_a?(Cloudwalk::HttpEvent)
-        ThreadChannel.channel_write(THREAD_COMMUNICATION, value.message)
+        ThreadChannel.channel_write(THREAD_INTERNAL_COMMUNICATION, value.message)
       else
-        ThreadChannel.channel_write(THREAD_COMMUNICATION, value)
+        ThreadChannel.channel_write(THREAD_INTERNAL_COMMUNICATION, value)
       end
     end
 
     def self.read
-      ThreadChannel.channel_read(THREAD_COMMUNICATION)
+      ThreadChannel.channel_read(THREAD_INTERNAL_COMMUNICATION)
     end
 
     def self.code
-      ThreadScheduler.command(THREAD_COMMUNICATION, "code")
+      ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "code")
     end
 
     def self.close
       ThreadScheduler.cache_clear!
-      ThreadScheduler.command(THREAD_COMMUNICATION, "close")
+      ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "close")
     end
 
     def self.connected?
       self.connection_cache do
-        ThreadScheduler.command(THREAD_COMMUNICATION, "connected?")
+        ret = ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "connected?")
+        ret
       end
     end
 
@@ -62,7 +64,7 @@ class Context
         if self.connected?
           timeout = Time.now + Device::Setting.tcp_recv_timeout.to_i
           loop do
-            break(true) if ThreadScheduler.command(THREAD_COMMUNICATION, "handshake?")
+            break(true) if ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "handshake?")
             break if Time.now > timeout || getc(200) == Device::IO::CANCEL
           end
         end
@@ -70,13 +72,13 @@ class Context
     end
 
     def self.handshake
-      ThreadScheduler.command(THREAD_COMMUNICATION, "handshake")
+      ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "handshake")
     end
 
     def self.connect(options = nil)
       self.connecting = true
       self.connecting_time = Time.now + 15
-      if ThreadScheduler.command(THREAD_COMMUNICATION, "connect")
+      if ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "connect")
         self
       end
     end

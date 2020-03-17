@@ -1,6 +1,6 @@
 class ThreadScheduler
-  THREAD_STATUS_BAR    = 0
-  THREAD_COMMUNICATION = 1
+  class ThreadSchedulerNotFoundError < StandardError; end
+
   THREAD_EXTERNAL_STATUS_BAR    = :status_bar
   THREAD_EXTERNAL_COMMUNICATION = :communication
   THREAD_INTERNAL_STATUS_BAR    = 0
@@ -39,43 +39,44 @@ class ThreadScheduler
 
   def self.spawn_status_bar
     if DaFunk::Helper::StatusBar.valid?
-      _start(THREAD_STATUS_BAR)
+      _start(THREAD_INTERNAL_STATUS_BAR)
       str = "Context.start('main', '#{Device.adapter}');"
       str << "Context.execute('main', '#{Device.adapter}', '{\"initialize\":\"status_bar\"}')"
       self.status_bar = Thread.new do
         mrb_eval(str, 'thread_status_bar')
-        _stop(THREAD_STATUS_BAR)
+        _stop(THREAD_INTERNAL_STATUS_BAR)
       end
     end
   end
 
   def self.stop_status_bar
     if self.status_bar
-      _stop(THREAD_STATUS_BAR)
+      _stop(THREAD_INTERNAL_STATUS_BAR)
       self.status_bar.join
       self.status_bar = nil
     end
   end
 
   def self.spawn_communication
-    _start(THREAD_COMMUNICATION)
+    _start(THREAD_INTERNAL_COMMUNICATION)
     str = "Context.start('main', '#{Device.adapter}'); "
     str << "Context.execute('main', '#{Device.adapter}', '{\"initialize\":\"communication\"}')"
     self.communication = Thread.new do
       mrb_eval(str, 'thread_communication')
-      _stop(THREAD_COMMUNICATION)
+      _stop(THREAD_INTERNAL_COMMUNICATION)
     end
   end
 
   def self.stop_communication
     if self.communication
-      _stop(THREAD_COMMUNICATION)
+      _stop(THREAD_INTERNAL_COMMUNICATION)
       self.communication.join
       self.communication = nil
     end
   end
 
-  def self.command(id, string, value = nil)
+  def self.command(thread, string, value = nil)
+    id = EXTERNAL_TO_INTERNAL[thread]
     self.cache[id] ||= {}
 
     buffer = value ? "#{string}=#{value}" : string
@@ -88,7 +89,8 @@ class ThreadScheduler
   end
 
   # TODO Refactor to send mruby irep binary
-  def self.execute(id)
+  def self.execute(thread)
+    id = EXTERNAL_TO_INTERNAL[thread]
     self._execute(id) do |str|
       begin
         if str == "connect"
@@ -129,11 +131,11 @@ class ThreadScheduler
   end
 
   def self.pause!(thread)
-    _pause(thread)
+    _pause(EXTERNAL_TO_INTERNAL[thread])
   end
 
   def self.continue!(thread)
-    _continue(thread)
+    _continue(EXTERNAL_TO_INTERNAL[thread])
   end
 
   def self.communication_thread?
@@ -141,15 +143,12 @@ class ThreadScheduler
   end
 
   def self.pausing_communication(&block)
-    if ! self.communication_thread?
-      pausing(THREAD_COMMUNICATION, &block)
-    else
-      block.call
-    end
+    Context::ThreadPubSub.publish("communication_update")
+    pausing(THREAD_EXTERNAL_COMMUNICATION, &block)
   end
 
   def self.pausing(thread, &block)
-    pause!(thread)
+    ret = pause!(thread)
     block.call
   ensure
     continue!(thread)
@@ -164,9 +163,7 @@ class ThreadScheduler
     when :communication
       _parse(_check(THREAD_INTERNAL_COMMUNICATION, timeout))
     else
-      if DaFunk::Helper::StatusBar.valid?
-        _parse(_check(THREAD_STATUS_BAR))
-      end
+      raise ThreadScheduler::ThreadSchedulerNotFoundError.new("Thread '#{thread}' not found on check")
     end
   end
 

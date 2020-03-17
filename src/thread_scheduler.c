@@ -25,6 +25,7 @@
 #define THREAD_STATUS_COMMAND 2
 #define THREAD_STATUS_RESPONSE 3
 #define THREAD_STATUS_PAUSE 4
+#define THREAD_STATUS_BLOCK 5
 
 #define THREAD_BLOCK 0
 #define THREAD_FREE 1
@@ -91,12 +92,23 @@ void context_sem_push(thread *threadControl)
   if (threadControl) threadControl->sem = THREAD_FREE;
 }
 
-void context_sem_wait(thread *threadControl)
+int context_sem_wait(thread *threadControl, int timeout_msec)
 {
+  int attempts = 6000; // 6000 * 50 ms = 5 minutes
+  int blockable = 1;
+  int i = 1;
+
+  if (timeout_msec > 0) attempts = timeout_msec / 50;
+
   if (threadControl) {
-    while(threadControl->sem == THREAD_BLOCK) usleep(50000);
+    while(threadControl->sem == THREAD_BLOCK){
+      usleep(50000);
+      i++;
+      if (i >= attempts) return -1;
+    }
     threadControl->sem = THREAD_BLOCK;
   }
+  return 1;
 }
 
 queueMessage *context_channel_new(void)
@@ -236,23 +248,30 @@ int thread_channel_dequeue_recv(char *buf)
 static mrb_value
 mrb_thread_scheduler_s__check(mrb_state *mrb, mrb_value self)
 {
-  mrb_int status = 0, id = 0;
+  mrb_int status = 0, id = 0, ret = 1, timeout = 0;
 
-  mrb_get_args(mrb, "i", &id);
+  mrb_get_args(mrb, "ii", &id, &timeout);
 
-  if (id == THREAD_STATUS_BAR) {
-    context_sem_wait(StatusBarThread);
-    status = StatusBarThread->status;
-    context_sem_push(StatusBarThread);
-  } else if (id == THREAD_COMMUNICATION) {
-    context_sem_wait(CommunicationThread);
-    status = CommunicationThread->status;
-    context_sem_push(CommunicationThread);
+  if (id == THREAD_STATUS_BAR && StatusBarThread) {
+    ret = context_sem_wait(StatusBarThread, timeout);
+    if (ret == 1) {
+      status = StatusBarThread->status;
+      context_sem_push(StatusBarThread);
+    }
+  } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
+    ret = context_sem_wait(CommunicationThread, timeout);
+    if (ret == 1) {
+      status = CommunicationThread->status;
+      context_sem_push(CommunicationThread);
+    }
   } else {
     status = THREAD_STATUS_DEAD;
   }
 
-  return mrb_fixnum_value(status);
+  if (ret == -1)
+    return mrb_fixnum_value(THREAD_STATUS_BLOCK);
+  else
+    return mrb_fixnum_value(status);
 }
 
 static mrb_value
@@ -292,11 +311,11 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "i", &id);
 
   if (id == THREAD_STATUS_BAR && StatusBarThread) {
-    context_sem_wait(StatusBarThread);
+    context_sem_wait(StatusBarThread, 0);
     StatusBarThread->status = THREAD_STATUS_DEAD;
     context_sem_push(StatusBarThread);
   } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
-    context_sem_wait(CommunicationThread);
+    context_sem_wait(CommunicationThread, 0);
     CommunicationThread->status = THREAD_STATUS_DEAD;
     context_sem_push(CommunicationThread);
   }
@@ -312,13 +331,15 @@ mrb_thread_scheduler_s__pause(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "i", &id);
 
   if (id == THREAD_STATUS_BAR && StatusBarThread) {
-    context_sem_wait(StatusBarThread);
+    context_sem_wait(StatusBarThread, 0);
     StatusBarThread->status = THREAD_STATUS_PAUSE;
     context_sem_push(StatusBarThread);
   } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
-    context_sem_wait(CommunicationThread);
+    context_sem_wait(CommunicationThread, 0);
     CommunicationThread->status = THREAD_STATUS_PAUSE;
     context_sem_push(CommunicationThread);
+  } else {
+    return mrb_false_value();
   }
 
   return mrb_true_value();
@@ -332,11 +353,11 @@ mrb_thread_scheduler_s__continue(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "i", &id);
 
   if (id == THREAD_STATUS_BAR && StatusBarThread) {
-    context_sem_wait(StatusBarThread);
+    context_sem_wait(StatusBarThread, 0);
     StatusBarThread->status = THREAD_STATUS_ALIVE;
     context_sem_push(StatusBarThread);
   } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
-    context_sem_wait(CommunicationThread);
+    context_sem_wait(CommunicationThread, 0);
     CommunicationThread->status = THREAD_STATUS_ALIVE;
     context_sem_push(CommunicationThread);
   }
@@ -441,7 +462,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "iS", &id, &command);
 
   if (schedule_command(id, 20, 10000) == 0) {
-    context_sem_wait(CommunicationThread);
+    context_sem_wait(CommunicationThread, 0);
     memset(CommunicationThread->command, 0, sizeof(CommunicationThread->command));
     memcpy(CommunicationThread->command, RSTRING_PTR(command), RSTRING_LEN(command));
     CommunicationThread->status = THREAD_STATUS_COMMAND;
@@ -452,13 +473,13 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
       try++;
     }
 
-    context_sem_wait(CommunicationThread);
+    context_sem_wait(CommunicationThread, 0);
     if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
       memcpy(response, CommunicationThread->response, strlen(CommunicationThread->response));
     } else {
       strcpy(response, "cache");
     }
-    if (CommunicationThread->status != THREAD_STATUS_DEAD)
+    if (CommunicationThread->status != THREAD_STATUS_DEAD) {
       CommunicationThread->status = THREAD_STATUS_ALIVE;
     memset(CommunicationThread->response, 0, sizeof(CommunicationThread->response));
     memset(CommunicationThread->command, 0, sizeof(CommunicationThread->command));
@@ -486,7 +507,7 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
     /*TODO Scalone check gc arena sabe approach lib/mruby/mrbgems/mruby-string-ext/src/string.c:592*/
     response_object = mrb_yield(mrb, block, mrb_str_new_cstr(mrb, CommunicationThread->command));
 
-    context_sem_wait(CommunicationThread);
+    context_sem_wait(CommunicationThread, 0);
     if (mrb_string_p(response_object)) {
       memcpy(CommunicationThread->response, RSTRING_PTR(response_object), RSTRING_LEN(response_object));
     }

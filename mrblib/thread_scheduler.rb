@@ -1,6 +1,17 @@
 class ThreadScheduler
   THREAD_STATUS_BAR    = 0
   THREAD_COMMUNICATION = 1
+  THREAD_EXTERNAL_STATUS_BAR    = :status_bar
+  THREAD_EXTERNAL_COMMUNICATION = :communication
+  THREAD_INTERNAL_STATUS_BAR    = 0
+  THREAD_INTERNAL_COMMUNICATION = 1
+
+  EXTERNAL_TO_INTERNAL = {
+    THREAD_EXTERNAL_STATUS_BAR    => THREAD_INTERNAL_STATUS_BAR,
+    THREAD_EXTERNAL_COMMUNICATION => THREAD_INTERNAL_COMMUNICATION
+  }
+
+  INTERNAL_TO_EXTERNAL = EXTERNAL_TO_INTERNAL.invert
 
   class << self
     attr_accessor :status_bar, :communication, :cache
@@ -112,8 +123,9 @@ class ThreadScheduler
     check(thread) == :dead
   end
 
-  def self.pause?(thread)
-    check(thread) == :pause
+  def self.pause?(thread, timeout = 0)
+    status = check(thread, timeout)
+    status == :pause || status == :block
   end
 
   def self.pause!(thread)
@@ -143,14 +155,14 @@ class ThreadScheduler
     continue!(thread)
   end
 
-  def self.check(thread)
+  def self.check(thread, timeout = 0)
     case thread
     when :status_bar
       if DaFunk::Helper::StatusBar.valid?
-        _parse(_check(THREAD_STATUS_BAR))
+        _parse(_check(THREAD_INTERNAL_STATUS_BAR, timeout))
       end
     when :communication
-      _parse(_check(THREAD_COMMUNICATION))
+      _parse(_check(THREAD_INTERNAL_COMMUNICATION, timeout))
     else
       if DaFunk::Helper::StatusBar.valid?
         _parse(_check(THREAD_STATUS_BAR))
@@ -170,6 +182,8 @@ class ThreadScheduler
       :alive
     when 4
       :pause
+    when 5
+      :block
     else
       :dead
     end

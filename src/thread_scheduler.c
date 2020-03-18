@@ -479,7 +479,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
     } else {
       strcpy(response, "cache");
     }
-    if (CommunicationThread->status != THREAD_STATUS_DEAD) {
+    if (CommunicationThread->status != THREAD_STATUS_DEAD && (CommunicationThread->status == THREAD_STATUS_COMMAND || CommunicationThread->status == THREAD_STATUS_RESPONSE)) {
       CommunicationThread->status = THREAD_STATUS_ALIVE;
     }
     memset(CommunicationThread->response, 0, sizeof(CommunicationThread->response));

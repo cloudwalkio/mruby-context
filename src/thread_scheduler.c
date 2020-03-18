@@ -481,6 +481,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
     }
     if (CommunicationThread->status != THREAD_STATUS_DEAD) {
       CommunicationThread->status = THREAD_STATUS_ALIVE;
+    }
     memset(CommunicationThread->response, 0, sizeof(CommunicationThread->response));
     memset(CommunicationThread->command, 0, sizeof(CommunicationThread->command));
     context_sem_push(CommunicationThread);

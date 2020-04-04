@@ -12,6 +12,7 @@ class ThreadScheduler
   }
 
   INTERNAL_TO_EXTERNAL = EXTERNAL_TO_INTERNAL.invert
+  NOT_CACHEABLE = ["code"]
 
   class << self
     attr_accessor :status_bar, :communication, :cache
@@ -81,6 +82,8 @@ class ThreadScheduler
 
     buffer = value ? "#{string}=#{value}" : string
     result = self._command(id, buffer)
+    return eval(result) if NOT_CACHEABLE.include?(string)
+
     if result != "cache"
       self.cache[id][string] = eval(result)
     else

@@ -42,6 +42,7 @@ typedef struct thread {
 } thread;
 
 typedef struct message {
+  int id;
   int len;
   char data[51200];
   struct message *front;
@@ -95,7 +96,6 @@ void context_sem_push(thread *threadControl)
 int context_sem_wait(thread *threadControl, int timeout_msec)
 {
   int attempts = 6000; // 6000 * 50 ms = 5 minutes
-  int blockable = 1;
   int i = 1;
 
   if (timeout_msec > 0) attempts = timeout_msec / 50;
@@ -131,118 +131,6 @@ void context_channel_sem_wait(queueMessage *threadControl)
 void context_channel_sem_push(queueMessage *threadControl)
 {
   if (threadControl) threadControl->sem = THREAD_FREE;
-}
-
-int thread_channel_enqueue_send(char *buf, int len)
-{
-  struct message *newMessage;
-  char trashBuf[12000]= {0x00};
-
-  thread_channel_dequeue_recv(trashBuf);
-  if (len > 0) {
-    context_channel_sem_wait(connThreadQueueSend);
-    newMessage = (message *)malloc(sizeof(message));
-
-    /*Copy message*/
-    memset(newMessage->data, 0, sizeof(newMessage->data));
-    memcpy(newMessage->data, buf, len);
-    newMessage->len = len;
-
-    if (connThreadQueueSend->size == 0) {
-      connThreadQueueSend->first = newMessage;
-      connThreadQueueSend->last = newMessage;
-      connThreadQueueSend->size = 1;
-    } else {
-      /*populate last, queue and node*/
-      connThreadQueueSend->last->rear = newMessage;
-      newMessage->front = connThreadQueueSend->last;
-      connThreadQueueSend->last = newMessage;
-      connThreadQueueSend->size++;
-    }
-
-    context_channel_sem_push(connThreadQueueSend);
-  }
-
-  return len;
-}
-
-int thread_channel_dequeue_send(char *buf)
-{
-  int len=0;
-  struct message *first;
-  struct message *local;
-
-  if (connThreadQueueSend->size > 0) {
-    context_channel_sem_wait(connThreadQueueSend);
-
-    local = connThreadQueueSend->first;
-
-    memcpy(buf, local->data, local->len);
-
-    len   = local->len;
-    first = local->rear;
-
-    connThreadQueueSend->first = first;
-    connThreadQueueSend->size--;
-    free(local);
-    context_channel_sem_push(connThreadQueueSend);
-  }
-  return len;
-}
-
-int thread_channel_enqueue_recv(char *buf, int len)
-{
-  struct message *newMessage;
-
-  if (len > 0) {
-    context_channel_sem_wait(connThreadQueueRecv);
-    newMessage = (message *)malloc(sizeof(message));
-
-    /*Copy message*/
-    memset(newMessage->data, 0, sizeof(newMessage->data));
-    memcpy(newMessage->data, buf, len);
-    newMessage->len = len;
-
-    if (connThreadQueueRecv->size == 0) {
-      connThreadQueueRecv->first = newMessage;
-      connThreadQueueRecv->last = newMessage;
-      connThreadQueueRecv->size = 1;
-    } else {
-      /*populate last, queue and node*/
-      connThreadQueueRecv->last->rear = newMessage;
-      newMessage->front = connThreadQueueRecv->last;
-      connThreadQueueRecv->last = newMessage;
-      connThreadQueueRecv->size++;
-    }
-
-    context_channel_sem_push(connThreadQueueRecv);
-  }
-
-  return len;
-}
-
-int thread_channel_dequeue_recv(char *buf)
-{
-  int len=0;
-  struct message *first;
-  struct message *local;
-
-  if (connThreadQueueRecv->size > 0) {
-    context_channel_sem_wait(connThreadQueueRecv);
-
-    local = connThreadQueueRecv->first;
-    memcpy(buf, local->data, local->len);
-
-    len   = local->len;
-    first = local->rear;
-
-    connThreadQueueRecv->first = first;
-    connThreadQueueRecv->size--;
-    free(local);
-
-    context_channel_sem_push(connThreadQueueRecv);
-  }
-  return len;
 }
 
 static mrb_value
@@ -365,60 +253,107 @@ mrb_thread_scheduler_s__continue(mrb_state *mrb, mrb_value self)
   return mrb_true_value();
 }
 
-static mrb_value
-mrb_thread_channel_s_channel_write(mrb_state *mrb, mrb_value self)
+int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
 {
-  mrb_int id = 0;
+  int len=0;
+  struct message *local;
+  int i=1;
+
+  if (queue->size > 0) {
+    context_channel_sem_wait(queue);
+    local = queue->first;
+
+    while (local != NULL) {
+      if (local->id == *id || *id == 0) {
+        memcpy(buf, local->data, local->len);
+        len = local->len;
+
+        if (local->front == NULL) queue->first = local->rear;
+        if (local->rear  == NULL)  queue->last = local->front;
+        queue->size--;
+        (*id) = local->id;
+        free(local);
+
+        break;
+      }
+      local = local->rear;
+    }
+
+    context_channel_sem_push(queue);
+  }
+  return len;
+}
+
+int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int len)
+{
+  struct message *newMessage;
+
+  if (len > 0) {
+    context_channel_sem_wait(queue);
+    newMessage = (message *)malloc(sizeof(message));
+
+    /*Copy message*/
+    memset(newMessage->data, 0, sizeof(newMessage->data));
+    memcpy(newMessage->data, buf, len);
+    newMessage->len = len;
+    newMessage->id = id;
+
+    if (queue->size == 0) {
+      queue->first = newMessage;
+      queue->last = newMessage;
+      queue->size = 1;
+    } else {
+      /*populate last, queue and node*/
+      queue->last->rear = newMessage;
+      newMessage->front = queue->last;
+      queue->last = newMessage;
+      queue->size++;
+    }
+
+    context_channel_sem_push(queue);
+  }
+
+  return len;
+}
+
+static mrb_value
+mrb_thread_channel_s__write(mrb_state *mrb, mrb_value self)
+{
+  mrb_int id = 0, channel = 0, eventId = 0, len = 0;
   mrb_value value;
 
-  mrb_get_args(mrb, "iS", &id, &value);
+  mrb_get_args(mrb, "iiiS", &id, &channel, &eventId, &value);
 
-  thread_channel_enqueue_send(RSTRING_PTR(value), RSTRING_LEN(value));
-
-  return mrb_fixnum_value(RSTRING_LEN(value));
-}
-
-static mrb_value
-mrb_thread_channel_s_channel_read(mrb_state *mrb, mrb_value self)
-{
-  mrb_int id = 0, len = 0;
-  char buf[51200] = {0x00};
-
-  mrb_get_args(mrb, "i", &id);
-
-  len = thread_channel_dequeue_recv(buf);
-  if (len > 0)
-    return mrb_str_new(mrb, buf, len);
+  if (channel == 0)
+    len = thread_channel_enqueue(connThreadQueueSend, eventId, RSTRING_PTR(value), RSTRING_LEN(value));
   else
-    return mrb_nil_value();
+    len = thread_channel_enqueue(connThreadQueueRecv, eventId, RSTRING_PTR(value), RSTRING_LEN(value));
+
+  return mrb_fixnum_value(len);
 }
 
 static mrb_value
-mrb_thread_channel_s_queue_write(mrb_state *mrb, mrb_value self)
+mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0;
-  mrb_value value;
-
-  mrb_get_args(mrb, "iS", &id, &value);
-
-  thread_channel_enqueue_recv(RSTRING_PTR(value), RSTRING_LEN(value));
-
-  return mrb_fixnum_value(RSTRING_LEN(value));
-}
-
-static mrb_value
-mrb_thread_channel_s_queue_read(mrb_state *mrb, mrb_value self)
-{
-  mrb_int id = 0, len = 0;
+  mrb_int id = 0, len = 0, channel = 0, eventId = 0;
   char buf[51200] = {0x00};
+  mrb_value array;
 
-  mrb_get_args(mrb, "i", &id);
+  mrb_get_args(mrb, "iii", &id, &channel, &eventId);
 
-  len = thread_channel_dequeue_send(buf);
-  if (len > 0)
-    return mrb_str_new(mrb, buf, len);
-  else
-    return mrb_nil_value();
+  if (channel == 0) {
+    len = thread_channel_dequeue(connThreadQueueSend, &eventId, buf);
+  } else {
+    len = thread_channel_dequeue(connThreadQueueRecv, &eventId, buf);
+  }
+
+  array = mrb_ary_new(mrb);
+  mrb_ary_push(mrb, array, mrb_fixnum_value(eventId));
+  if (len > 0) {
+    mrb_ary_push(mrb, array, mrb_str_new(mrb, buf, len));
+  }
+
+  return array;
 }
 
 static int
@@ -521,61 +456,6 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
   return mrb_false_value();
 }
 
-int thread_channel_enqueue(struct queueMessage *queue, char *buf, int len)
-{
-  struct message *newMessage;
-
-  if (len > 0) {
-    context_channel_sem_wait(queue);
-    newMessage = (message *)malloc(sizeof(message));
-
-    /*Copy message*/
-    memset(newMessage->data, 0, sizeof(newMessage->data));
-    memcpy(newMessage->data, buf, len);
-    newMessage->len = len;
-
-    if (queue->size == 0) {
-      queue->first = newMessage;
-      queue->last = newMessage;
-      queue->size = 1;
-    } else {
-      /*populate last, queue and node*/
-      queue->last->rear = newMessage;
-      newMessage->front = queue->last;
-      queue->last = newMessage;
-      queue->size++;
-    }
-
-    context_channel_sem_push(queue);
-  }
-
-  return len;
-}
-
-int thread_channel_dequeue(queueMessage *queue, char *buf)
-{
-  int len=0;
-  struct message *first;
-  struct message *local;
-
-  if (queue->size > 0) {
-    context_channel_sem_wait(queue);
-
-    local = queue->first;
-
-    memcpy(buf, local->data, local->len);
-
-    len   = local->len;
-    first = local->rear;
-
-    queue->first = first;
-    queue->size--;
-    free(local);
-    context_channel_sem_push(queue);
-  }
-  return len;
-}
-
 int subscribe(void)
 {
   int id = 0;
@@ -591,7 +471,7 @@ int publish(char *buf, int len)
   int id = 0, ret = 0;
 
   while(connThreadEvents[id] != NULL) {
-    ret = thread_channel_enqueue(connThreadEvents[id], buf, len);
+    ret = thread_channel_enqueue(connThreadEvents[id], 0, buf, len);
     id++;
   };
   return ret;
@@ -599,8 +479,9 @@ int publish(char *buf, int len)
 
 int pubsub_listen(int id, char *buf)
 {
+  int eventId = 0;
   if (connThreadEvents[id] != NULL)
-    return thread_channel_dequeue(connThreadEvents[id], buf);
+    return thread_channel_dequeue(connThreadEvents[id], &eventId, buf);
   else
     return 0;
 }
@@ -665,12 +546,10 @@ mrb_thread_scheduler_init(mrb_state* mrb)
   mrb_define_class_method(mrb , thread_scheduler , "_command"  , mrb_thread_scheduler_s__command  , MRB_ARGS_REQ(2));
   mrb_define_class_method(mrb , thread_scheduler , "_execute"  , mrb_thread_scheduler_s__execute  , MRB_ARGS_REQ(2));
 
-  mrb_define_class_method(mrb , thread_channel , "channel_write" , mrb_thread_channel_s_channel_write , MRB_ARGS_REQ(2));
-  mrb_define_class_method(mrb , thread_channel , "channel_read"  , mrb_thread_channel_s_channel_read  , MRB_ARGS_REQ(1));
-  mrb_define_class_method(mrb , thread_channel , "queue_write"  , mrb_thread_channel_s_queue_write  , MRB_ARGS_REQ(2));
-  mrb_define_class_method(mrb , thread_channel , "queue_read"   , mrb_thread_channel_s_queue_read   , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_channel   , "_write"     , mrb_thread_channel_s__write     , MRB_ARGS_REQ(4));
+  mrb_define_class_method(mrb , thread_channel   , "_read"      , mrb_thread_channel_s__read      , MRB_ARGS_REQ(3));
 
-  mrb_define_class_method(mrb , thread_pub_sub , "subscribe" , mrb_thread_pub_sub_s_subscribe , MRB_ARGS_NONE());
-  mrb_define_class_method(mrb , thread_pub_sub , "listen"    , mrb_thread_pub_sub_s_listen    , MRB_ARGS_REQ(1));
-  mrb_define_class_method(mrb , thread_pub_sub , "publish"   , mrb_thread_pub_sub_s_publish   , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_pub_sub   , "subscribe" , mrb_thread_pub_sub_s_subscribe   , MRB_ARGS_NONE());
+  mrb_define_class_method(mrb , thread_pub_sub   , "listen"    , mrb_thread_pub_sub_s_listen      , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_pub_sub   , "publish"   , mrb_thread_pub_sub_s_publish     , MRB_ARGS_REQ(1));
 }

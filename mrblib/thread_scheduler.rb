@@ -82,7 +82,9 @@ class ThreadScheduler
 
     buffer = value ? "#{string}=#{value}" : string
     result = self._command(id, buffer)
-    return eval(result) if NOT_CACHEABLE.include?(string)
+    if NOT_CACHEABLE.include?(string)
+      return eval(result == 'cache' ? 'nil' : result)
+    end
 
     if result != "cache"
       self.cache[id][string] = eval(result)

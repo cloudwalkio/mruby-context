@@ -511,17 +511,17 @@ mrb_thread_pub_sub_s_listen(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_thread_pub_sub_s_publish(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0, len = 0;
+  mrb_int len = 0;
   mrb_value buf;
 
   mrb_get_args(mrb, "S", &buf);
 
   if (mrb_string_p(buf)) {
     len = publish(RSTRING_PTR(buf), RSTRING_LEN(buf));
-    if (len > 0) mrb_true_value();
+    if (len > 0) return mrb_true_value();
   }
 
-  mrb_false_value();
+  return mrb_false_value();
 }
 
 void

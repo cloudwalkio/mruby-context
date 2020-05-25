@@ -111,6 +111,39 @@ int context_sem_wait(thread *threadControl, int timeout_msec)
   return 1;
 }
 
+int context_thread_pause(thread *threadControl)
+{
+  int attempt = 1, attempts = 10, ret = 0;
+
+  if (threadControl != NULL && threadControl->status != THREAD_STATUS_DEAD) {
+    while(threadControl->status == THREAD_STATUS_ALIVE && attempt <= attempts) {
+      usleep(10000);
+      attempt++;
+    }
+
+    context_sem_wait(threadControl, 0);
+    if (threadControl->status == THREAD_STATUS_ALIVE) {
+      threadControl->status = THREAD_STATUS_PAUSE;
+      ret = 1;
+    }
+    context_sem_push(threadControl);
+  }
+
+  return ret;
+}
+
+int context_thread_continue(thread *threadControl)
+{
+  if (threadControl != NULL && threadControl->status == THREAD_STATUS_PAUSE) {
+    context_sem_wait(threadControl, 0);
+    threadControl->status = THREAD_STATUS_ALIVE;
+    context_sem_push(threadControl);
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
 queueMessage *context_channel_new(void)
 {
   queueMessage *queue = (queueMessage*) malloc(sizeof (queueMessage));
@@ -133,6 +166,111 @@ void context_channel_sem_wait(queueMessage *threadControl)
 void context_channel_sem_push(queueMessage *threadControl)
 {
   if (threadControl) threadControl->sem = THREAD_FREE;
+}
+
+void thread_channel_debug(queueMessage *queue)
+{
+  struct message *local;
+
+  local = queue->first;
+  while (local != NULL) {
+    /*memcpy(buf, local->data, local->len);*/
+    ContextLogFile("0[%d]len:[%d]\n", local, local->len);
+    /*ContextLogFile("1[%d]len:[%d]buf:[%s]\n", local, local->len, buf);*/
+    ContextLogFile("[%d]front:[%d]rear:[%d]\n", local, local->front, local->rear);
+    local = local->rear;
+  }
+}
+
+int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
+{
+  int len=0;
+  struct message *local;
+
+  /*thread_channel_debug(queue);*/
+
+  if (queue != NULL && queue->size > 0) {
+    context_channel_sem_wait(queue);
+    local = queue->first;
+
+    while (local != NULL) {
+      if ((id == NULL || *id == 0 || local->id == *id) && local->len > 0) {
+        memcpy(buf, local->data, local->len);
+        len = local->len;
+
+        if (local->front == NULL) {
+          queue->first = local->rear;
+        } else {
+          if (local->rear != NULL) local->rear->front = NULL;
+        }
+
+        if (local->rear  == NULL) {
+          queue->last = local->front;
+        } else {
+          if (local->front != NULL) local->front->rear = NULL;
+        }
+
+        queue->size--;
+        if (id != NULL) (*id) = local->id;
+        free(local);
+
+        break;
+      }
+      local = local->rear;
+    }
+
+    context_channel_sem_push(queue);
+  }
+  return len;
+}
+
+int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int len)
+{
+  struct message *newMessage;
+
+  if (len > 0 && len < 5000) {
+    context_channel_sem_wait(queue);
+    newMessage = (message *)malloc(sizeof(message));
+
+    /*Copy message*/
+    memset(newMessage->data, 0, sizeof(newMessage->data));
+    memcpy(newMessage->data, buf, len);
+    newMessage->len = len;
+    newMessage->id = id;
+    newMessage->front = NULL;
+    newMessage->rear = NULL;
+
+    if (queue->size == 0) {
+    }
+
+    if (queue->size == 0) {
+      queue->first = newMessage;
+      queue->last = newMessage;
+      queue->size = 1;
+    } else {
+      /*populate last, queue and node*/
+      queue->last->rear = newMessage;
+      newMessage->front = queue->last;
+      queue->last = newMessage;
+      queue->size++;
+    }
+
+    context_channel_sem_push(queue);
+  }
+
+  return len;
+}
+
+void thread_channel_clean(struct queueMessage *queue)
+{
+  char trash[51200] = {0x00};
+  int len = 1, id = 0;
+
+  while(len != 0) {
+    id = 0;
+    memset(trash, 0, sizeof(trash));
+    len = thread_channel_dequeue(queue, &id, trash);
+  }
 }
 
 static mrb_value
@@ -242,106 +380,38 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_thread_scheduler_s__pause(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0;
+  mrb_int id = 0, pause = 0;
 
   mrb_get_args(mrb, "i", &id);
 
-  if (id == THREAD_STATUS_BAR && StatusBarThread) {
-    context_sem_wait(StatusBarThread, 0);
-    StatusBarThread->status = THREAD_STATUS_PAUSE;
-    context_sem_push(StatusBarThread);
-  } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
-    context_sem_wait(CommunicationThread, 0);
-    CommunicationThread->status = THREAD_STATUS_PAUSE;
-    context_sem_push(CommunicationThread);
-  } else {
-    return mrb_false_value();
-  }
+  if (id == THREAD_STATUS_BAR)
+    pause = context_thread_pause(StatusBarThread);
+  else if (id == THREAD_COMMUNICATION)
+    pause = context_thread_pause(CommunicationThread);
 
-  return mrb_true_value();
+  if (pause == 1)
+    return mrb_true_value();
+  else
+    return mrb_false_value();
 }
 
 static mrb_value
 mrb_thread_scheduler_s__continue(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0;
+  mrb_int id = 0, ret = 0;
 
   mrb_get_args(mrb, "i", &id);
 
-  if (id == THREAD_STATUS_BAR && StatusBarThread) {
-    context_sem_wait(StatusBarThread, 0);
-    StatusBarThread->status = THREAD_STATUS_ALIVE;
-    context_sem_push(StatusBarThread);
-  } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
-    context_sem_wait(CommunicationThread, 0);
-    CommunicationThread->status = THREAD_STATUS_ALIVE;
-    context_sem_push(CommunicationThread);
+  if (id == THREAD_STATUS_BAR) {
+    ret = context_thread_continue(StatusBarThread);
+  } else if (id == THREAD_COMMUNICATION) {
+    ret = context_thread_continue(CommunicationThread);
   }
 
-  return mrb_true_value();
-}
-
-int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
-{
-  int len=0;
-  struct message *local;
-  int i=1;
-
-  if (queue->size > 0) {
-    context_channel_sem_wait(queue);
-    local = queue->first;
-
-    while (local != NULL) {
-      if (local->id == *id || *id == 0) {
-        memcpy(buf, local->data, local->len);
-        len = local->len;
-
-        if (local->front == NULL) queue->first = local->rear;
-        if (local->rear  == NULL)  queue->last = local->front;
-        queue->size--;
-        (*id) = local->id;
-        free(local);
-
-        break;
-      }
-      local = local->rear;
-    }
-
-    context_channel_sem_push(queue);
-  }
-  return len;
-}
-
-int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int len)
-{
-  struct message *newMessage;
-
-  if (len > 0) {
-    context_channel_sem_wait(queue);
-    newMessage = (message *)malloc(sizeof(message));
-
-    /*Copy message*/
-    memset(newMessage->data, 0, sizeof(newMessage->data));
-    memcpy(newMessage->data, buf, len);
-    newMessage->len = len;
-    newMessage->id = id;
-
-    if (queue->size == 0) {
-      queue->first = newMessage;
-      queue->last = newMessage;
-      queue->size = 1;
-    } else {
-      /*populate last, queue and node*/
-      queue->last->rear = newMessage;
-      newMessage->front = queue->last;
-      queue->last = newMessage;
-      queue->size++;
-    }
-
-    context_channel_sem_push(queue);
-  }
-
-  return len;
+  if (ret == 1)
+    return mrb_true_value();
+  else
+    return mrb_false_value();
 }
 
 static mrb_value
@@ -374,6 +444,7 @@ mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
   } else {
     len = thread_channel_dequeue(connThreadQueueRecv, &eventId, buf);
   }
+
 
   array = mrb_ary_new(mrb);
   mrb_ary_push(mrb, array, mrb_fixnum_value(eventId));

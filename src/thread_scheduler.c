@@ -561,7 +561,6 @@ int subscribe(void)
 {
   int id = 0;
   while (connThreadEvents[id] != NULL) { id++; };
-  if (connThreadEvents[id]) free(connThreadEvents[id]);
   connThreadEvents[id] = context_channel_new();
   context_channel_sem_push(connThreadEvents[id]);
   return id;

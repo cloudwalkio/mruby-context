@@ -116,6 +116,8 @@ queueMessage *context_channel_new(void)
   queueMessage *queue = (queueMessage*) malloc(sizeof (queueMessage));
 
   queue->size = 0;
+  queue->first = NULL;
+  queue->last = NULL;
   queue->sem = THREAD_BLOCK;
   return queue;
 }

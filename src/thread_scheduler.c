@@ -446,10 +446,12 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
     response_object = mrb_yield(mrb, block, mrb_str_new_cstr(mrb, CommunicationThread->command));
 
     context_sem_wait(CommunicationThread, 0);
-    if (mrb_string_p(response_object)) {
-      memcpy(CommunicationThread->response, RSTRING_PTR(response_object), RSTRING_LEN(response_object));
+    if (CommunicationThread->status == THREAD_STATUS_COMMAND) {
+      if (mrb_string_p(response_object)) {
+        memcpy(CommunicationThread->response, RSTRING_PTR(response_object), RSTRING_LEN(response_object));
+      }
+      CommunicationThread->status = THREAD_STATUS_RESPONSE;
     }
-    CommunicationThread->status = THREAD_STATUS_RESPONSE;
     context_sem_push(CommunicationThread);
 
     return mrb_true_value();

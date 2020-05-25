@@ -27,3 +27,18 @@ void ContextLog(mrb_state *mrb, int severity_level, const char *format, ...)
     mrb_funcall(mrb, context, "info", 1, msg);
 }
 
+void ContextLogFile(const char *format, ...)
+{
+  char dest[5120];
+  va_list argptr;
+  FILE *pFile;
+
+  va_start(argptr, format);
+  vsprintf(dest, format, argptr);
+  /*sprintf(dest, "%s\n", dest);*/
+  va_end(argptr);
+
+  pFile = fopen("main/debug.log", "a");
+  fwrite(dest, strlen(dest), 1, pFile);
+  fclose(pFile);
+}

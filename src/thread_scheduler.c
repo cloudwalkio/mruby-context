@@ -175,9 +175,22 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
     StatusBarThread = context_thread_new(id, THREAD_FREE);
     context_sem_push(StatusBarThread);
   } else if (id == THREAD_COMMUNICATION) {
-    if (CommunicationThread) free(CommunicationThread);
-    if (connThreadQueueRecv) free(connThreadQueueRecv);
-    if (connThreadQueueSend) free(connThreadQueueSend);
+
+    if (CommunicationThread) {
+      context_sem_wait(CommunicationThread, 0);
+      free(CommunicationThread);
+      CommunicationThread = NULL;
+    }
+    if (connThreadQueueRecv) {
+      thread_channel_clean(connThreadQueueRecv);
+      free(connThreadQueueRecv);
+      connThreadQueueRecv = NULL;
+    }
+    if (connThreadQueueSend) {
+      thread_channel_clean(connThreadQueueSend);
+      free(connThreadQueueSend);
+      connThreadQueueSend = NULL;
+    }
 
     CommunicationThread = context_thread_new(id, THREAD_FREE);
     connThreadQueueRecv = context_channel_new();
@@ -204,9 +217,22 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
     context_sem_wait(StatusBarThread, 0);
     StatusBarThread->status = THREAD_STATUS_DEAD;
     context_sem_push(StatusBarThread);
+
   } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
     context_sem_wait(CommunicationThread, 0);
     CommunicationThread->status = THREAD_STATUS_DEAD;
+
+    if (connThreadQueueRecv) {
+      thread_channel_clean(connThreadQueueRecv);
+      free(connThreadQueueRecv);
+      connThreadQueueRecv = NULL;
+    }
+    if (connThreadQueueSend) {
+      thread_channel_clean(connThreadQueueSend);
+      free(connThreadQueueSend);
+      connThreadQueueSend = NULL;
+    }
+
     context_sem_push(CommunicationThread);
   }
 

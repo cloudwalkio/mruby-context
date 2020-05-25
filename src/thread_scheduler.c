@@ -468,7 +468,7 @@ int subscribe(void)
   return id;
 }
 
-int publish(char *buf, int len)
+int pubsub_publish(char *buf, int len)
 {
   int id = 0, ret = 0;
 
@@ -519,7 +519,7 @@ mrb_thread_pub_sub_s_publish(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "S", &buf);
 
   if (mrb_string_p(buf)) {
-    len = publish(RSTRING_PTR(buf), RSTRING_LEN(buf));
+    len = pubsub_publish(RSTRING_PTR(buf), RSTRING_LEN(buf));
     if (len > 0) return mrb_true_value();
   }
 

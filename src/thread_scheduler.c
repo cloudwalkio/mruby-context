@@ -370,8 +370,14 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
       free(connThreadQueueSend);
       connThreadQueueSend = NULL;
     }
+    while(connThreadEvents[eventId] != NULL) {
+      thread_channel_clean(connThreadEvents[eventId]);
+      free(connThreadEvents[eventId]);
+      connThreadEvents[eventId] = NULL;
+      eventId++;
+    };
 
-    context_sem_push(CommunicationThread);
+    context_thread_sem_push(CommunicationThread);
   }
 
   return mrb_true_value();

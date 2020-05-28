@@ -56,6 +56,8 @@ class Context
         Main.call
       end
     end
+  ensure
+    GC.start
   end
 
   def self.setup(app, platform)

@@ -122,6 +122,14 @@ class ThreadScheduler
     end
   end
 
+  def self.payment_channel
+    if DaFunk::PaymentChannel.respond_to? :current
+      DaFunk::PaymentChannel.current
+    else
+      DaFunk::PaymentChannel.client
+    end
+  end
+
   def self.alive?(thread)
     check(thread) == :alive
   end
@@ -144,7 +152,7 @@ class ThreadScheduler
   end
 
   def self.communication_thread?
-    DaFunk::PaymentChannel.client != Context::CommunicationChannel
+    self.payment_channel != Context::CommunicationChannel
   end
 
   def self.pausing_communication(&block)

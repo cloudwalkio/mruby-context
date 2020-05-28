@@ -53,12 +53,15 @@ class ThreadScheduler
     end
   end
 
-  def self.command(thread, string, value = nil)
-    id = EXTERNAL_TO_INTERNAL[thread]
+  def self.command(id, string, value = nil, once = false)
     self.cache[id] ||= {}
 
     buffer = value ? "#{string}=#{value}" : string
-    result = self._command(id, buffer)
+    if once
+      result = self._command(id, buffer)
+    else
+      result = self._command_once(id, buffer)
+    end
     if NOT_CACHEABLE.include?(string)
       return eval(result == 'cache' ? 'nil' : result)
     end
@@ -71,8 +74,7 @@ class ThreadScheduler
   end
 
   # TODO Refactor to send mruby irep binary
-  def self.execute(thread)
-    id = EXTERNAL_TO_INTERNAL[thread]
+  def self.execute(id = 0)
     self._execute(id) do |str|
       begin
         if str == "connect"

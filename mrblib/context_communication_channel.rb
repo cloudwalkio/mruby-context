@@ -27,7 +27,7 @@ class Context
     end
 
     def self.app=(application)
-      ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "app=#{application}")
+      ThreadScheduler.command(0, "app=#{application}")
       @app = application
     end
 
@@ -44,18 +44,17 @@ class Context
     end
 
     def self.code
-      ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "code")
+      ThreadScheduler.command(1, "code", nil, true)
     end
 
     def self.close
       ThreadScheduler.cache_clear!
-      ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "close")
+      ThreadScheduler.command(2, "close")
     end
 
     def self.connected?
       self.connection_cache do
-        ret = ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "connected?")
-        ret
+        ThreadScheduler.command(3, "connected?")
       end
     end
 
@@ -67,13 +66,13 @@ class Context
     end
 
     def self.handshake
-      ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "handshake")
+      ThreadScheduler.command(5, "handshake")
     end
 
     def self.connect(options = nil)
       self.connecting = true
       self.connecting_time = Time.now + 15
-      if ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "connect")
+      if ThreadScheduler.command(6, "connect")
         self
       end
     end

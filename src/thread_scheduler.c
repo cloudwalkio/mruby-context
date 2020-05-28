@@ -6,6 +6,8 @@
 #include "mruby/array.h"
 #include "mruby/string.h"
 #include "mruby/hash.h"
+#include "mruby/variable.h"
+#include "mruby/ext/context_log.h"
 
 #include <time.h>
 #ifdef _WIN32
@@ -22,8 +24,6 @@
 
 #define THREAD_STATUS_DEAD 0
 #define THREAD_STATUS_ALIVE 1
-#define THREAD_STATUS_COMMAND 2
-#define THREAD_STATUS_RESPONSE 3
 #define THREAD_STATUS_PAUSE 4
 #define THREAD_STATUS_BLOCK 5
 
@@ -56,6 +56,25 @@ typedef struct queueMessage {
   int size;
 } queueMessage;
 
+typedef struct executionMessage {
+  int id;
+  int sem;
+  int executed;
+  char *command;
+  int commandLen;
+  char *response;
+  int responseLen;
+  struct executionMessage *front;
+  struct executionMessage *rear;
+} executionMessage;
+
+typedef struct threadExecutionQueue {
+  struct executionMessage *first;
+  struct executionMessage *last;
+  int sem;
+  int size;
+} threadExecutionQueue;
+
 static struct thread *StatusBarThread           = NULL;
 static struct thread *CommunicationThread       = NULL;
 
@@ -64,17 +83,10 @@ static struct queueMessage *connThreadQueueSend = NULL;
 
 static struct queueMessage *connThreadEvents[10];
 
-/*
- *TODO:
- *  1. Semaphore functions
- *    Context thread and channel message semaphore implementation are beign
- *    developed together, but it may be equal.
- *  2. Unify channel buffers
- *    Functions thread_channel_enqueue_send
- *  3. Unify queues in a generic interface
- *
- */
+static struct threadExecutionQueue *executionQueue   = NULL;
 
+
+/*Context thread functions*/
 thread *context_thread_new(int id, int status)
 {
   thread *threadControl = (thread*) malloc(sizeof (thread));
@@ -88,12 +100,12 @@ thread *context_thread_new(int id, int status)
   return threadControl;
 }
 
-void context_sem_push(thread *threadControl)
+void context_thread_sem_push(thread *threadControl)
 {
   if (threadControl) threadControl->sem = THREAD_FREE;
 }
 
-int context_sem_wait(thread *threadControl, int timeout_msec)
+int context_thread_sem_wait(thread *threadControl, int timeout_msec)
 {
   int attempts = 6000; // 6000 * 50 ms = 5 minutes
   int i = 1;
@@ -121,12 +133,12 @@ int context_thread_pause(thread *threadControl)
       attempt++;
     }
 
-    context_sem_wait(threadControl, 0);
+    context_thread_sem_wait(threadControl, 0);
     if (threadControl->status == THREAD_STATUS_ALIVE) {
       threadControl->status = THREAD_STATUS_PAUSE;
       ret = 1;
     }
-    context_sem_push(threadControl);
+    context_thread_sem_push(threadControl);
   }
 
   return ret;
@@ -135,15 +147,17 @@ int context_thread_pause(thread *threadControl)
 int context_thread_continue(thread *threadControl)
 {
   if (threadControl != NULL && threadControl->status == THREAD_STATUS_PAUSE) {
-    context_sem_wait(threadControl, 0);
+    context_thread_sem_wait(threadControl, 0);
     threadControl->status = THREAD_STATUS_ALIVE;
-    context_sem_push(threadControl);
+    context_thread_sem_push(threadControl);
     return 1;
   } else {
     return 0;
   }
 }
+/*Context thread functions*/
 
+/*Context channel functions*/
 queueMessage *context_channel_new(void)
 {
   queueMessage *queue = (queueMessage*) malloc(sizeof (queueMessage));
@@ -170,7 +184,7 @@ void context_channel_sem_push(queueMessage *threadControl)
 
 void thread_channel_debug(queueMessage *queue)
 {
-  struct message *local;
+  struct message *local = NULL;
 
   local = queue->first;
   while (local != NULL) {
@@ -185,7 +199,7 @@ void thread_channel_debug(queueMessage *queue)
 int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
 {
   int len=0;
-  struct message *local;
+  struct message *local = NULL;
 
   /*thread_channel_debug(queue);*/
 
@@ -226,7 +240,7 @@ int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
 
 int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int len)
 {
-  struct message *newMessage;
+  struct message *newMessage = NULL;
 
   if (len > 0 && len < 5000) {
     context_channel_sem_wait(queue);
@@ -239,9 +253,6 @@ int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int le
     newMessage->id = id;
     newMessage->front = NULL;
     newMessage->rear = NULL;
-
-    if (queue->size == 0) {
-    }
 
     if (queue->size == 0) {
       queue->first = newMessage;
@@ -272,6 +283,237 @@ void thread_channel_clean(struct queueMessage *queue)
     len = thread_channel_dequeue(queue, &id, trash);
   }
 }
+/*Context channel functions*/
+
+/*Context thread execution functions*/
+threadExecutionQueue *thread_execution_new(void)
+{
+  threadExecutionQueue *queue = (threadExecutionQueue*) malloc(sizeof (threadExecutionQueue));
+
+  queue->size = 0;
+  queue->first = NULL;
+  queue->last = NULL;
+  queue->sem = THREAD_BLOCK;
+  return queue;
+}
+
+void thread_execution_sem_wait(threadExecutionQueue *threadControl)
+{
+  if (threadControl) {
+    while(threadControl->sem == THREAD_BLOCK) usleep(50000);
+    threadControl->sem = THREAD_BLOCK;
+  }
+}
+
+void thread_execution_sem_push(threadExecutionQueue *threadControl)
+{
+  if (threadControl) threadControl->sem = THREAD_FREE;
+}
+
+executionMessage *thread_execution_message_new(int id)
+{
+  executionMessage *message = (executionMessage*) malloc(sizeof (executionMessage));
+
+  message->id = id;
+  message->sem = THREAD_BLOCK;
+  message->rear = NULL;
+  message->front = NULL;
+  message->command = NULL;
+  message->commandLen = 0;
+  message->response = NULL;
+  message->responseLen = 0;
+  message->executed = 0;
+
+  return message;
+}
+
+void thread_execution_message_sem_wait(executionMessage *threadControl)
+{
+  if (threadControl) {
+    while(threadControl->sem == THREAD_BLOCK) usleep(50000);
+    threadControl->sem = THREAD_BLOCK;
+  }
+}
+
+void thread_execution_message_sem_push(executionMessage *threadControl)
+{
+  if (threadControl) threadControl->sem = THREAD_FREE;
+}
+
+int thread_execution_enqueue(struct threadExecutionQueue *queue, int id, int command, char *buf, int len)
+{
+  struct executionMessage *message = NULL;
+  struct executionMessage *local = NULL;
+
+  if (queue == NULL) return 0;
+
+  /*Search for already schedule execution*/
+  if (queue && queue->size > 0) {
+    local = queue->first;
+    while (local != NULL) {
+      if (local->id == id) {
+        message = local;
+        break;
+      }
+      local = local->rear;
+    }
+  }
+
+  /*if exist block to peform operation, if not exists create the message and associate with the queue*/
+  if (message != NULL) {
+    thread_execution_message_sem_wait(message);
+  } else {
+    thread_execution_sem_wait(queue);
+    message = thread_execution_message_new(id);
+    if (queue->size == 0) {
+      queue->first = message;
+      queue->last = message;
+      queue->size = 1;
+    } else {
+      queue->last->rear = message;
+      message->front = queue->last;
+      queue->last = message;
+      queue->size++;
+    }
+    thread_execution_sem_push(queue);
+  }
+
+  /*Copy command/response to message*/
+  if (command == 0) {
+    message->command = (char*) realloc(message->command, len);
+    memcpy(message->command, buf, len);
+    message->commandLen = len;
+    message->executed = 0;
+  } else {
+    message->response = (char*) realloc(message->response, len);
+    memcpy(message->response, buf, len);
+    message->responseLen = len;
+    message->executed = 1;
+  }
+
+  thread_execution_message_sem_push(message);
+
+  return len;
+}
+
+int thread_execution_get(struct threadExecutionQueue *queue, int id, int command, char *buf)
+{
+  int len=0;
+  struct executionMessage *message = NULL;
+  struct executionMessage *local = NULL;
+
+  /*Search for already schedule execution*/
+  if (queue && queue->size > 0) {
+    local = queue->first;
+    while (local != NULL) {
+      if (local->id == id) {
+        message = local;
+        break;
+      }
+      local = local->rear;
+    }
+  }
+  if (message == NULL) return len;
+
+  /*get information inside of struct synchronizing*/
+  if (command == 0 && message->commandLen >= 0 && message->executed == 0) {
+    if (message->commandLen > 0) {
+      memcpy(buf, message->command, message->commandLen);
+      len = message->commandLen;
+      thread_execution_message_sem_wait(message);
+      message->executed = 0;
+      thread_execution_message_sem_push(message);
+    }
+  } else if (command == 1 && message->responseLen >= 0 && message->executed == 1) {
+    if (message->responseLen > 0) {
+      thread_execution_message_sem_wait(message);
+      memcpy(buf, message->response, message->responseLen);
+      len = message->responseLen;
+      message->executed = 1;
+      thread_execution_message_sem_push(message);
+    }
+  }
+
+  return len;
+}
+
+int thread_execution_dequeue(struct threadExecutionQueue *queue, int id, int command, char *buf)
+{
+  int len=0;
+  struct executionMessage *message = NULL;
+  struct executionMessage *local = NULL;
+
+  /*Search for already schedule execution*/
+  if (queue && queue->size > 0) {
+    local = queue->first;
+    while (local != NULL) {
+      if (local->id == id) {
+        message = local;
+        break;
+      }
+      local = local->rear;
+    }
+  }
+  if (message == NULL) return len;
+
+  /*get information inside of struct synchronizing*/
+  if (command == 0 && message && message->commandLen > 0 && message->executed == 0 && message->command) {
+    memcpy(buf, message->command, message->commandLen);
+    len = message->commandLen;
+
+    thread_execution_message_sem_wait(message);
+    free(message->command);
+    message->executed = 0;
+    message->command = NULL;
+    message->commandLen = 0;
+    thread_execution_message_sem_push(message);
+  } else if (command == 1 && message && message->responseLen > 0 && message->executed == 1 && message->response) {
+    thread_execution_message_sem_wait(message);
+    memcpy(buf, message->response, message->responseLen);
+    len = message->responseLen;
+    message->executed = 1;
+    free(message->response);
+    message->response = NULL;
+    message->responseLen = 0;
+    thread_execution_message_sem_push(message);
+  }
+
+  if (message && message->command == NULL && message->response == NULL) {
+    thread_execution_sem_wait(queue);
+
+    if (message->front == NULL)
+      queue->first = message->rear;
+    else
+      if (message->rear != NULL) message->rear->front = NULL;
+
+    if (message->rear  == NULL)
+      queue->last = message->front;
+    else
+      if (message->front != NULL) message->front->rear = NULL;
+
+    queue->size--;
+    free(message);
+
+    thread_execution_sem_push(queue);
+  }
+
+  return len;
+}
+
+void thread_execution_clean(struct threadExecutionQueue *queue)
+{
+  char trash[51200] = {0x00};
+  int len = 1, id = 0;
+
+  while(len != 0) {
+    id = 0;
+    memset(trash, 0, sizeof(trash));
+    len = thread_execution_dequeue(queue, id, 0, trash);
+    memset(trash, 0, sizeof(trash));
+    if (len > 0) thread_execution_dequeue(queue, id, 1, trash);
+  }
+}
+/*Context thread execution functions*/
 
 static mrb_value
 mrb_thread_scheduler_s__check(mrb_state *mrb, mrb_value self)
@@ -281,16 +523,16 @@ mrb_thread_scheduler_s__check(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "ii", &id, &timeout);
 
   if (id == THREAD_STATUS_BAR && StatusBarThread) {
-    ret = context_sem_wait(StatusBarThread, timeout);
+    ret = context_thread_sem_wait(StatusBarThread, timeout);
     if (ret == 1) {
       status = StatusBarThread->status;
-      context_sem_push(StatusBarThread);
+      context_thread_sem_push(StatusBarThread);
     }
   } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
-    ret = context_sem_wait(CommunicationThread, timeout);
+    ret = context_thread_sem_wait(CommunicationThread, timeout);
     if (ret == 1) {
       status = CommunicationThread->status;
-      context_sem_push(CommunicationThread);
+      context_thread_sem_push(CommunicationThread);
     }
   } else {
     status = THREAD_STATUS_DEAD;
@@ -311,11 +553,11 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
   if (id == THREAD_STATUS_BAR) {
     if (StatusBarThread) free(StatusBarThread);
     StatusBarThread = context_thread_new(id, THREAD_FREE);
-    context_sem_push(StatusBarThread);
+    context_thread_sem_push(StatusBarThread);
   } else if (id == THREAD_COMMUNICATION) {
 
     if (CommunicationThread) {
-      context_sem_wait(CommunicationThread, 0);
+      context_thread_sem_wait(CommunicationThread, 0);
       free(CommunicationThread);
       CommunicationThread = NULL;
     }
@@ -329,14 +571,21 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
       free(connThreadQueueSend);
       connThreadQueueSend = NULL;
     }
+    if (executionQueue) {
+      thread_execution_clean(executionQueue);
+      free(executionQueue);
+      executionQueue = NULL;
+    }
 
     CommunicationThread = context_thread_new(id, THREAD_FREE);
     connThreadQueueRecv = context_channel_new();
     connThreadQueueSend = context_channel_new();
+    executionQueue      = thread_execution_new();
 
-    context_sem_push(CommunicationThread);
+    context_thread_sem_push(CommunicationThread);
     context_channel_sem_push(connThreadQueueRecv);
     context_channel_sem_push(connThreadQueueSend);
+    thread_execution_sem_push(executionQueue);
   } else {
     return mrb_false_value();
   }
@@ -347,17 +596,17 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0;
+  mrb_int eventId = 0, id = 0, ret = 0;
 
   mrb_get_args(mrb, "i", &id);
 
   if (id == THREAD_STATUS_BAR && StatusBarThread) {
-    context_sem_wait(StatusBarThread, 0);
+    context_thread_sem_wait(StatusBarThread, 0);
     StatusBarThread->status = THREAD_STATUS_DEAD;
-    context_sem_push(StatusBarThread);
+    context_thread_sem_push(StatusBarThread);
 
   } else if (id == THREAD_COMMUNICATION && CommunicationThread) {
-    context_sem_wait(CommunicationThread, 0);
+    context_thread_sem_wait(CommunicationThread, 0);
     CommunicationThread->status = THREAD_STATUS_DEAD;
 
     if (connThreadQueueRecv) {
@@ -451,7 +700,6 @@ mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
     len = thread_channel_dequeue(connThreadQueueRecv, &eventId, buf);
   }
 
-
   array = mrb_ary_new(mrb);
   mrb_ary_push(mrb, array, mrb_fixnum_value(eventId));
   if (len > 0) {
@@ -461,106 +709,87 @@ mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
   return array;
 }
 
-static int
-schedule_command(int id, int tries, int timeout_micro) {
-  mrb_int try = 1;
-
-  if (CommunicationThread && CommunicationThread->status != THREAD_STATUS_DEAD) {
-    /*Wait for thread that call command collect the response*/
-    while(CommunicationThread->status == THREAD_STATUS_RESPONSE && try <= tries) {
-      usleep(timeout_micro);
-      try++;
-    }
-
-    if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
-      context_sem_wait(CommunicationThread, 0);
-      if (CommunicationThread->status == THREAD_STATUS_RESPONSE) CommunicationThread->status = THREAD_STATUS_ALIVE;
-      context_sem_push(CommunicationThread);
-    }
-
-    try = 1;
-    if (id == THREAD_COMMUNICATION && CommunicationThread) {
-      while(CommunicationThread->status != THREAD_STATUS_ALIVE && try <= tries) {
-        usleep(timeout_micro);
-        try++;
-      }
-      if (CommunicationThread->status == THREAD_STATUS_ALIVE) return 0;
-    }
-  }
-  return -1;
-}
-
 static mrb_value
 mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0, try = 1;
   mrb_value command;
-  char response[256];
+  char response[1024] = {0x00};
+  mrb_int id = 0, len = 0;
 
   memset(response, 0, sizeof(response));
 
   mrb_get_args(mrb, "iS", &id, &command);
 
-  if (schedule_command(id, 20, 10000) == 0) {
-    context_sem_wait(CommunicationThread, 0);
-    memset(CommunicationThread->command, 0, sizeof(CommunicationThread->command));
-    memcpy(CommunicationThread->command, RSTRING_PTR(command), RSTRING_LEN(command));
-    CommunicationThread->status = THREAD_STATUS_COMMAND;
-    context_sem_push(CommunicationThread);
+  len = thread_execution_get(executionQueue, id, 1, response);
+  thread_execution_enqueue(executionQueue, id, 0, RSTRING_PTR(command), RSTRING_LEN(command));
 
-    while(CommunicationThread->status == THREAD_STATUS_COMMAND && try <= 20) {
-      usleep(10000);
-      try++;
-    }
+  if (len > 0) {
+    return mrb_str_new(mrb, response, len);
+  } else {
+    return mrb_str_new(mrb, "cache", 5);
+  }
+}
 
-    context_sem_wait(CommunicationThread, 0);
-    if (CommunicationThread->status == THREAD_STATUS_RESPONSE) {
-      memcpy(response, CommunicationThread->response, strlen(CommunicationThread->response));
-    } else {
-      strcpy(response, "cache");
-    }
-    if (CommunicationThread->status != THREAD_STATUS_DEAD && (CommunicationThread->status == THREAD_STATUS_COMMAND || CommunicationThread->status == THREAD_STATUS_RESPONSE)) {
-      CommunicationThread->status = THREAD_STATUS_ALIVE;
-    }
-    memset(CommunicationThread->response, 0, sizeof(CommunicationThread->response));
-    memset(CommunicationThread->command, 0, sizeof(CommunicationThread->command));
-    context_sem_push(CommunicationThread);
+static mrb_value
+mrb_thread_scheduler_s__command_once(mrb_state *mrb, mrb_value self)
+{
+  mrb_value command;
+  char response[1024] = {0x00};
+  char trash[1024] = {0x00};
+  mrb_int id = 0, len = 0;
 
-    return mrb_str_new(mrb, response, strlen(response));
+  memset(response, 0, sizeof(response));
+
+  mrb_get_args(mrb, "iS", &id, &command);
+
+  len = thread_execution_dequeue(executionQueue, id, 1, response);
+  if (len == 0) {
+    thread_execution_enqueue(executionQueue, id, 0, RSTRING_PTR(command), RSTRING_LEN(command));
+  } else {
+    thread_execution_dequeue(executionQueue, id, 0, trash);
   }
 
-  return mrb_str_new(mrb, "cache", 5);
+  if (len > 0) {
+    return mrb_str_new(mrb, response, len);
+  } else {
+    return mrb_str_new(mrb, "cache", 5);
+  }
 }
 
 static mrb_value
 mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
 {
-  mrb_int id = 0;
-  mrb_value block, response_object;
+  mrb_int id = 0, len = 0;
+  mrb_value block, obj;
+  char command[1024] = {0x00};
+  struct executionMessage *local = NULL;
 
   mrb_get_args(mrb, "i&", &id, &block);
 
-  if (mrb_nil_p(block)) {
+  if (mrb_nil_p(block) && executionQueue != NULL) {
     return mrb_false_value();
   }
 
-  if (id == THREAD_COMMUNICATION && CommunicationThread && CommunicationThread->status == THREAD_STATUS_COMMAND) {
-    /*TODO Scalone check gc arena sabe approach lib/mruby/mrbgems/mruby-string-ext/src/string.c:592*/
-    response_object = mrb_yield(mrb, block, mrb_str_new_cstr(mrb, CommunicationThread->command));
-
-    context_sem_wait(CommunicationThread, 0);
-    if (CommunicationThread->status == THREAD_STATUS_COMMAND) {
-      if (mrb_string_p(response_object)) {
-        memcpy(CommunicationThread->response, RSTRING_PTR(response_object), RSTRING_LEN(response_object));
+  if (executionQueue && executionQueue->size > 0) {
+    local = executionQueue->first;
+    while (local != NULL) {
+      if (local->executed == 0 && local->commandLen > 0 && (id == 0 || local->id == id)) {
+        len = thread_execution_get(executionQueue, local->id, 0, command);
+        if (len > 0) {
+          /*maybe free this obj*/
+          obj = mrb_yield(mrb, block, mrb_str_new(mrb, command, len));
+          if (mrb_string_p(obj)) {
+            thread_execution_enqueue(executionQueue, local->id, 1, RSTRING_PTR(obj), RSTRING_LEN(obj));
+          }
+        }
       }
-      CommunicationThread->status = THREAD_STATUS_RESPONSE;
+      local = local->rear;
     }
-    context_sem_push(CommunicationThread);
-
-    return mrb_true_value();
+  } else {
+    return mrb_false_value();
   }
 
-  return mrb_false_value();
+  return mrb_true_value();
 }
 
 int subscribe(void)
@@ -650,6 +879,7 @@ mrb_thread_scheduler_init(mrb_state* mrb)
   mrb_define_class_method(mrb , thread_scheduler , "_continue" , mrb_thread_scheduler_s__continue , MRB_ARGS_REQ(1));
 
   mrb_define_class_method(mrb , thread_scheduler , "_command"  , mrb_thread_scheduler_s__command  , MRB_ARGS_REQ(2));
+  mrb_define_class_method(mrb , thread_scheduler , "_command_once" , mrb_thread_scheduler_s__command_once , MRB_ARGS_REQ(2));
   mrb_define_class_method(mrb , thread_scheduler , "_execute"  , mrb_thread_scheduler_s__execute  , MRB_ARGS_REQ(2));
 
   mrb_define_class_method(mrb , thread_channel   , "_write"     , mrb_thread_channel_s__write     , MRB_ARGS_REQ(4));

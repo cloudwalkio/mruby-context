@@ -59,16 +59,11 @@ class Context
       end
     end
 
+    # TODO Scalone:
+    # I decide to mock this call, it could be a problem on payment channel by
+    # Websocket
     def self.handshake?
-      self.connection_cache do
-        if self.connected?
-          timeout = Time.now + Device::Setting.tcp_recv_timeout.to_i
-          loop do
-            break(true) if ThreadScheduler.command(THREAD_EXTERNAL_COMMUNICATION, "handshake?")
-            break if Time.now > timeout || getc(200) == Device::IO::CANCEL
-          end
-        end
-      end
+      true
     end
 
     def self.handshake

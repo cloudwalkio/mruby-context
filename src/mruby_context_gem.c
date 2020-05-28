@@ -143,6 +143,18 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 }
 
 static void
+mrb_debug_instances(void) {
+  int i=0;
+
+  while (i < 20) {
+    if (instances[i] != NULL) {
+      ContextLogFile("Instance id [%d] ptr [%d] app [%s]\n", i, instances[i], instances[i]->application);
+    }
+    i++;
+  }
+}
+
+static void
 mrb_free_instance(instance *current)
 {
   mrbc_context_free(current->mrb, current->context);

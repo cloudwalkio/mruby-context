@@ -80,8 +80,17 @@ class Context
       # TODO
       # DaFunk.setup_command_line
     end
-    DaFunk::PaymentChannel.client = Context::CommunicationChannel
+    self.set_payment_channel_interface
     Device::Runtime.system_reload
+  end
+
+  def self.set_payment_channel_interface
+    # Backward compatibility
+    if DaFunk::PaymentChannel.respond_to? :current
+      DaFunk::PaymentChannel.current = Context::CommunicationChannel
+    else
+      DaFunk::PaymentChannel.client = Context::CommunicationChannel
+    end
   end
 
   def self.teardown

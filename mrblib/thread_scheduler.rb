@@ -20,12 +20,10 @@ class ThreadScheduler
   self.cache = Hash.new
 
   def self.start
-    self.spawn_status_bar
     self.spawn_communication
   end
 
   def self.stop
-    stop_status_bar
     stop_communication
   end
 
@@ -35,27 +33,6 @@ class ThreadScheduler
 
   def self.keep_alive
     self.spawn_communication if self.die?(:communication)
-    self.spawn_status_bar if self.die?(:status_bar)
-  end
-
-  def self.spawn_status_bar
-    if DaFunk::Helper::StatusBar.valid?
-      _start(THREAD_INTERNAL_STATUS_BAR)
-      str = "Context.start('main', '#{Device.adapter}');"
-      str << "Context.execute('main', '#{Device.adapter}', '{\"initialize\":\"status_bar\"}')"
-      self.status_bar = Thread.new do
-        mrb_eval(str, 'thread_status_bar')
-        _stop(THREAD_INTERNAL_STATUS_BAR)
-      end
-    end
-  end
-
-  def self.stop_status_bar
-    if self.status_bar
-      _stop(THREAD_INTERNAL_STATUS_BAR)
-      self.status_bar.join
-      self.status_bar = nil
-    end
   end
 
   def self.spawn_communication

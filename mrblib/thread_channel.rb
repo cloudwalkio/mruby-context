@@ -67,7 +67,7 @@ class Context
     end
 
     def self.read(channel, event_id = id)
-      @id, buf = _read(1, internal_channel(channel), id)
+      @id, buf = _read(1, internal_channel(channel), event_id)
       buf
     end
   end

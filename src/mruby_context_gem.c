@@ -112,9 +112,10 @@ context_memprof_init(mrb_allocf *funp, void **udp)
 static instance*
 mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 {
+  int i=0;
   void *ud;
   instance *current;
-  int i=0;
+  mrb_allocf allocf;
   int instance_free_spot = -1;
 
   while (i < 20) {
@@ -127,7 +128,9 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 
   current = (instance *)malloc(sizeof(instance));
 
-  current->mrb = mrb_open();
+  context_memprof_init(&allocf, &ud);
+  current->mrb = mrb_open_allocf(allocf, ud);
+
   current->context = mrbc_context_new(current->mrb);
   current->context->capture_errors = TRUE;
   current->context->no_optimize = TRUE;

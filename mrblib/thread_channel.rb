@@ -58,7 +58,8 @@ class Context
       if Context::ThreadScheduler.communication_thread?
         id
       else
-        @id = Time.now.to_i + rand(99999)
+        time = Time.now.to_i.to_s[-6..-1].to_i
+        @id = time + rand(99999)
       end
     end
 

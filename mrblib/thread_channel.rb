@@ -1,4 +1,28 @@
 class Context
+  # == ThreadChannel
+  #
+  # Operation example:
+  #
+  # main thread
+  # -> write(:send, '1234')
+  #   => generate event id 1
+  #
+  # communication thread
+  # -> read(:send, 0)
+  #   => send event id 0 to get first
+  #   => read event id 1
+  #   => '5678'
+  #
+  # -> communicate in the thread
+  #
+  # -> write(:recv, '5678')
+  #   => id 1
+  #
+  # main thread
+  # -> read(:recv, 1)
+  #   => id 1
+  #   => '5678'
+  #
   class ThreadChannel
     class ChannelNotFound < StandardError; end
 
@@ -46,26 +70,5 @@ class Context
       @id, buf = _read(1, internal_channel(channel), id)
       buf
     end
-
-    # main thread
-    # -> write(:send, '1234')
-    #   => generate event id 1
-    #
-    # communication thread
-    # -> read(:send, 0)
-    #   => send event id 0 to get first
-    #   => read event id 1
-    #   => '5678'
-    #
-    # -> communicate in the thread
-    #
-    # -> write(:recv, '5678')
-    #   => id 1
-    #
-    # main thread
-    # -> read(:recv, 1)
-    #   => id 1
-    #   => '5678'
-    #
   end
 end

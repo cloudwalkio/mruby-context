@@ -81,16 +81,10 @@ class ThreadScheduler
           method, value = str.split("=")
           DaFunk::PaymentChannel.send("#{method}=", value)
           "true"
+        elsif str == 'check'
+          self.payment_channel&.check(false).to_s
         else
-          if DaFunk::PaymentChannel.client
-            if str == "check"
-              DaFunk::PaymentChannel.client.check(false).to_s
-            else
-              DaFunk::PaymentChannel.client.send(str).to_s
-            end
-          else
-            "false"
-          end
+          self.payment_channel&.send(str).to_s
         end
       rescue => e
         ContextLog.exception(e, e.backtrace, "Thread [#{id}] execution error")

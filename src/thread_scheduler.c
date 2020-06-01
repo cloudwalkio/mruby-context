@@ -242,7 +242,7 @@ int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int le
 {
   struct message *newMessage = NULL;
 
-  if (len > 0 && len < 5000) {
+  if (len > 0 && len < 100001) {
     context_channel_sem_wait(queue);
     newMessage = (message *)malloc(sizeof(message));
 

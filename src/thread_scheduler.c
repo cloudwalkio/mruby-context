@@ -27,6 +27,7 @@
 #define THREAD_STATUS_PAUSE 4
 #define THREAD_STATUS_BLOCK 5
 #define CHANNEL_MAX_MSG_SIZE 100001
+#define THREAD_COMMAND_MAX_MSG_SIZE 10001
 
 #define THREAD_BLOCK 0
 #define THREAD_FREE 1
@@ -714,7 +715,7 @@ static mrb_value
 mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 {
   mrb_value command;
-  char response[1024] = {0x00};
+  char response[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
   mrb_int id = 0, len = 0;
 
   memset(response, 0, sizeof(response));
@@ -735,8 +736,8 @@ static mrb_value
 mrb_thread_scheduler_s__command_once(mrb_state *mrb, mrb_value self)
 {
   mrb_value command;
-  char response[1024] = {0x00};
-  char trash[1024] = {0x00};
+  char response[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
+  char trash[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
   mrb_int id = 0, len = 0;
 
   memset(response, 0, sizeof(response));
@@ -762,7 +763,7 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0;
   mrb_value block, obj;
-  char command[1024] = {0x00};
+  char command[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
   struct executionMessage *local = NULL;
 
   mrb_get_args(mrb, "i&", &id, &block);

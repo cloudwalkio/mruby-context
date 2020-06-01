@@ -26,6 +26,7 @@
 #define THREAD_STATUS_ALIVE 1
 #define THREAD_STATUS_PAUSE 4
 #define THREAD_STATUS_BLOCK 5
+#define CHANNEL_MAX_MSG_SIZE 100001
 
 #define THREAD_BLOCK 0
 #define THREAD_FREE 1
@@ -242,7 +243,7 @@ int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int le
 {
   struct message *newMessage = NULL;
 
-  if (len > 0 && len < 100001) {
+  if (len > 0 && len < CHANNEL_MAX_MSG_SIZE) {
     context_channel_sem_wait(queue);
     newMessage = (message *)malloc(sizeof(message));
 
@@ -274,7 +275,7 @@ int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int le
 
 void thread_channel_clean(struct queueMessage *queue)
 {
-  char trash[51200] = {0x00};
+  char trash[CHANNEL_MAX_MSG_SIZE] = {0x00};
   int len = 1, id = 0;
 
   while(len != 0) {
@@ -502,7 +503,7 @@ int thread_execution_dequeue(struct threadExecutionQueue *queue, int id, int com
 
 void thread_execution_clean(struct threadExecutionQueue *queue)
 {
-  char trash[51200] = {0x00};
+  char trash[CHANNEL_MAX_MSG_SIZE] = {0x00};
   int len = 1, id = 0;
 
   while(len != 0) {
@@ -689,7 +690,7 @@ static mrb_value
 mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0, channel = 0, eventId = 0;
-  char buf[51200] = {0x00};
+  char buf[CHANNEL_MAX_MSG_SIZE] = {0x00};
   mrb_value array;
 
   mrb_get_args(mrb, "iii", &id, &channel, &eventId);
@@ -831,7 +832,7 @@ static mrb_value
 mrb_thread_pub_sub_s_listen(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0;
-  char buf[51200] = {0x00};
+  char buf[CHANNEL_MAX_MSG_SIZE] = {0x00};
 
   mrb_get_args(mrb, "i", &id);
 

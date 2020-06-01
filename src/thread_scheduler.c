@@ -189,9 +189,9 @@ void thread_channel_debug(queueMessage *queue)
   local = queue->first;
   while (local != NULL) {
     /*memcpy(buf, local->data, local->len);*/
-    ContextLogFile("0[%d]len:[%d]\n", local, local->len);
+    ContextLogFile("0-[%d]len:[%d]\n", local, local->len);
     /*ContextLogFile("1[%d]len:[%d]buf:[%s]\n", local, local->len, buf);*/
-    ContextLogFile("[%d]front:[%d]rear:[%d]\n", local, local->front, local->rear);
+    ContextLogFile("1-[%d]front:[%d]rear:[%d]\n", local, local->front, local->rear);
     local = local->rear;
   }
 }

@@ -27,8 +27,15 @@ class ThreadScheduler
     stop_communication
   end
 
+  NOT_CLEAREABLE = {
+    3 => 'connected?'
+  }
+
   def self.cache_clear!
-    self.cache = Hash.new
+    self.cache ||= {}
+    self.cache = self.cache.select do |key, value|
+      !! NOT_CLEAREABLE[key]
+    end
   end
 
   def self.keep_alive

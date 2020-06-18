@@ -83,7 +83,7 @@ static struct thread *CommunicationThread       = NULL;
 static struct queueMessage *connThreadQueueRecv = NULL;
 static struct queueMessage *connThreadQueueSend = NULL;
 
-static struct queueMessage *connThreadEvents[10];
+static struct queueMessage *connThreadEvents[10] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 static struct threadExecutionQueue *executionQueue   = NULL;
 

@@ -28,6 +28,7 @@
 #define THREAD_STATUS_BLOCK 5
 #define CHANNEL_MAX_MSG_SIZE 100001
 #define THREAD_COMMAND_MAX_MSG_SIZE 10001
+#define PUBSUB_SLOTS 10
 
 #define THREAD_BLOCK 0
 #define THREAD_FREE 1
@@ -83,7 +84,7 @@ static struct thread *CommunicationThread       = NULL;
 static struct queueMessage *connThreadQueueRecv = NULL;
 static struct queueMessage *connThreadQueueSend = NULL;
 
-static struct queueMessage *connThreadEvents[10] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static struct queueMessage *connThreadEvents[PUBSUB_SLOTS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
 static struct threadExecutionQueue *executionQueue   = NULL;
 

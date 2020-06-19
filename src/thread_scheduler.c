@@ -599,7 +599,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 {
-  mrb_int eventId = 0, id = 0, ret = 0;
+  mrb_int eventId = 0, id = 0;
 
   mrb_get_args(mrb, "i", &id);
 
@@ -798,40 +798,62 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
 int subscribe(void)
 {
   int id = 0;
-  while (connThreadEvents[id] != NULL) { id++; };
-  connThreadEvents[id] = context_channel_new();
-  context_channel_sem_push(connThreadEvents[id]);
+
+  /*ContextLogFile("subscribe id 0 ptr [%d]\n", connThreadEvents[0]);*/
+
+  while (connThreadEvents[id] != NULL) {
+    /*ContextLogFile("subscribe check id [%d] ptr [%d]\n", id, connThreadEvents[id]);*/
+    id++;
+    if(id >= 10) {
+      id = -1;
+      break;
+    }
+  }
+  if (id >= 0) {
+    connThreadEvents[id] = context_channel_new();
+    /*ContextLogFile("subscribe id [%d] ptr [%d]\n", id, connThreadEvents[id]);*/
+    context_channel_sem_push(connThreadEvents[id]);
+  }
   return id;
 }
 
-int pubsub_publish(char *buf, int len)
+int pubsub_publish(char *buf, int len, int avoid_id)
 {
   int id = 0, ret = 0;
 
-  while(connThreadEvents[id] != NULL) {
-    ret = thread_channel_enqueue(connThreadEvents[id], 0, buf, len);
+  while(connThreadEvents[id] != NULL && id < 10) {
+    if (id != avoid_id) {
+      /*ContextLogFile("publish id [%d][%s][%d]\n", id, buf, connThreadEvents[id]);*/
+      ret = thread_channel_enqueue(connThreadEvents[id], 0, buf, len);
+      /*ContextLogFile("publish id [%d] ret [%d]\n", id, ret);*/
+    }
     id++;
-  };
+  }
+
   return ret;
 }
 
 int pubsub_listen(int id, char *buf)
 {
   int eventId = 0;
-  if (connThreadEvents[id] != NULL)
-    return thread_channel_dequeue(connThreadEvents[id], &eventId, buf);
-  else
+  int ret = 0;
+  if (connThreadEvents[id] != NULL) {
+    /*ContextLogFile("listen id [%d]", id);*/
+    ret = thread_channel_dequeue(connThreadEvents[id], &eventId, buf);
+    /*ContextLogFile("listen id [%d][%d][%s]\n", id, ret, buf);*/
+    return ret;
+  } else
     return 0;
 }
 
 static mrb_value
-mrb_thread_pub_sub_s_subscribe(mrb_state *mrb, mrb_value self)
+mrb_thread_pub_sub_s__subscribe(mrb_state *mrb, mrb_value self)
 {
   return mrb_fixnum_value(subscribe());
 }
 
 static mrb_value
-mrb_thread_pub_sub_s_listen(mrb_state *mrb, mrb_value self)
+mrb_thread_pub_sub_s__listen(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0;
   char buf[CHANNEL_MAX_MSG_SIZE] = {0x00};
@@ -847,15 +869,20 @@ mrb_thread_pub_sub_s_listen(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
-mrb_thread_pub_sub_s_publish(mrb_state *mrb, mrb_value self)
+mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
 {
   mrb_int len = 0;
+  mrb_value avoid_id;
   mrb_value buf;
 
-  mrb_get_args(mrb, "S", &buf);
+  mrb_get_args(mrb, "So", &buf, &avoid_id);
 
   if (mrb_string_p(buf)) {
-    len = pubsub_publish(RSTRING_PTR(buf), RSTRING_LEN(buf));
+    if (mrb_fixnum_p(avoid_id)) {
+      len = pubsub_publish(RSTRING_PTR(buf), RSTRING_LEN(buf), mrb_fixnum(avoid_id));
+    } else {
+      len = pubsub_publish(RSTRING_PTR(buf), RSTRING_LEN(buf), -1);
+    }
     if (len > 0) return mrb_true_value();
   }
 
@@ -888,7 +915,7 @@ mrb_thread_scheduler_init(mrb_state* mrb)
   mrb_define_class_method(mrb , thread_channel   , "_write"     , mrb_thread_channel_s__write     , MRB_ARGS_REQ(4));
   mrb_define_class_method(mrb , thread_channel   , "_read"      , mrb_thread_channel_s__read      , MRB_ARGS_REQ(3));
 
-  mrb_define_class_method(mrb , thread_pub_sub   , "subscribe" , mrb_thread_pub_sub_s_subscribe   , MRB_ARGS_NONE());
-  mrb_define_class_method(mrb , thread_pub_sub   , "listen"    , mrb_thread_pub_sub_s_listen      , MRB_ARGS_REQ(1));
-  mrb_define_class_method(mrb , thread_pub_sub   , "publish"   , mrb_thread_pub_sub_s_publish     , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_pub_sub   , "_subscribe" , mrb_thread_pub_sub_s__subscribe , MRB_ARGS_NONE());
+  mrb_define_class_method(mrb , thread_pub_sub   , "_listen"    , mrb_thread_pub_sub_s__listen    , MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb , thread_pub_sub   , "_publish"   , mrb_thread_pub_sub_s__publish   , MRB_ARGS_REQ(2));
 }

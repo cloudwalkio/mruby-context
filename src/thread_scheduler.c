@@ -212,8 +212,12 @@ int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
 
     while (local != NULL) {
       if ((id == NULL || *id == 0 || local->id == *id) && local->len > 0) {
-        memcpy(buf, local->data, local->len);
-        len = local->len;
+        if (local->len < CHANNEL_MAX_MSG_SIZE) {
+          memcpy(buf, local->data, local->len);
+          len = local->len;
+        } else {
+          len = 0;
+        }
 
         if (local->front == NULL) {
           queue->first = local->rear;
@@ -859,6 +863,8 @@ mrb_thread_pub_sub_s__listen(mrb_state *mrb, mrb_value self)
   char buf[CHANNEL_MAX_MSG_SIZE] = {0x00};
 
   mrb_get_args(mrb, "i", &id);
+
+  memset(buf, 0, sizeof(buf));
 
   len = pubsub_listen(id, buf);
 

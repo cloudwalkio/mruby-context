@@ -212,6 +212,7 @@ int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
 
     while (local != NULL) {
       if ((id == NULL || *id == 0 || local->id == *id) && local->len > 0) {
+        ContextLogFile("dequeue[%d] local->len[%d]\n", queue, local->len);
         if (local->len < CHANNEL_MAX_MSG_SIZE) {
           memcpy(buf, local->data, local->len);
           len = local->len;
@@ -248,10 +249,14 @@ int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
 int thread_channel_enqueue(struct queueMessage *queue, int id, char *buf, int len)
 {
   struct message *newMessage = NULL;
+  /*char buf2[CHANNEL_MAX_MSG_SIZE] = {};*/
 
   if (len > 0 && len < CHANNEL_MAX_MSG_SIZE) {
     context_channel_sem_wait(queue);
     newMessage = (message *)malloc(sizeof(message));
+    ContextLogFile("enqueue[%d] len[%d] objlen[%d] id[%d]\n", queue, len, sizeof(message), id);
+    /*memcpy(buf2, buf, len);*/
+    /*ContextLogFile("enqueue[%d] buf[%s]\n", buf2);*/
 
     /*Copy message*/
     memset(newMessage->data, 0, sizeof(newMessage->data));
@@ -826,10 +831,10 @@ int pubsub_publish(char *buf, int len, int avoid_id)
   int id = 0, ret = 0;
 
   while(connThreadEvents[id] != NULL && id < 10) {
-    if (id != avoid_id) {
-      /*ContextLogFile("publish id [%d][%s][%d]\n", id, buf, connThreadEvents[id]);*/
+    if (id != avoid_id && connThreadEvents[id]->size == 0) {
+      ContextLogFile("publish id [%d] str [%s] len [%d] queue[%d]\n", id, buf, len, connThreadEvents[id]);
       ret = thread_channel_enqueue(connThreadEvents[id], 0, buf, len);
-      /*ContextLogFile("publish id [%d] ret [%d]\n", id, ret);*/
+      ContextLogFile("publish id [%d] ret [%d] qsize[%d]\n", id, ret, connThreadEvents[id]->size);
     }
     id++;
   }
@@ -842,9 +847,9 @@ int pubsub_listen(int id, char *buf)
   int eventId = 0;
   int ret = 0;
   if (connThreadEvents[id] != NULL) {
-    /*ContextLogFile("listen id [%d]", id);*/
+    ContextLogFile("listen id [%d] queue [%d]", id, connThreadEvents[id]);
     ret = thread_channel_dequeue(connThreadEvents[id], &eventId, buf);
-    /*ContextLogFile("listen id [%d][%d][%s]\n", id, ret, buf);*/
+    ContextLogFile("listen id [%d][%d][%s]\n", id, ret, buf);
     return ret;
   } else
     return 0;

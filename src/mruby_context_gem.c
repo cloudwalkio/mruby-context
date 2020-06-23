@@ -18,6 +18,7 @@ typedef struct instance {
   char application[256];
   mrbc_context *context;
   mrb_state *mrb;
+  int outdated;
 } instance;
 
 static struct instance *instances[20];
@@ -134,6 +135,7 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
   current->context = mrbc_context_new(current->mrb);
   current->context->capture_errors = TRUE;
   current->context->no_optimize = TRUE;
+  current->outdated = FALSE;
   memset(current->application, 0, 256);
   strcpy(current->application, application_name);
 
@@ -172,7 +174,18 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "S|S", &code, &application);
 
   current = mrb_alloc_instance(RSTRING_PTR(application), RSTRING_LEN(application), mrb);
-  ret = mrb_load_nstring_cxt(current->mrb, RSTRING_PTR(code), RSTRING_LEN(code), current->context);
+  if (current->outdated) {
+    if (strcmp(RSTRING_PTR(code), "Context.start") >= 0) {
+      ret = mrb_true_value();
+    } else { /*Context.execute*/
+      mrb_free_instance(current);
+      mrb_funcall(mrb, self, "mrb_start", 1, application);
+      current = mrb_alloc_instance(RSTRING_PTR(application), RSTRING_LEN(application), mrb);
+      ret     = mrb_load_nstring_cxt(current->mrb, RSTRING_PTR(code), RSTRING_LEN(code), current->context);
+    }
+  } else {
+    ret = mrb_load_nstring_cxt(current->mrb, RSTRING_PTR(code), RSTRING_LEN(code), current->context);
+  }
 
   if (mrb_undef_p(ret))
     mrb_ret = mrb_nil_value();
@@ -194,8 +207,31 @@ mrb_mrb_stop(mrb_state *mrb, mrb_value self)
 
   while (i < 20) {
     if (instances[i] != NULL && strcmp(instances[i]->application, RSTRING_PTR(application)) == 0) {
-      mrb_free_instance(instances[i]);
-      instances[i] = NULL;
+      if (instances[i]->mrb == mrb) {
+        instances[i]->outdated = TRUE;
+      } else {
+        mrb_free_instance(instances[i]);
+        instances[i] = NULL;
+      }
+      break;
+    }
+    i++;
+  }
+
+  return mrb_nil_value();
+}
+
+static mrb_value
+mrb_mrb_expire(mrb_state *mrb, mrb_value self)
+{
+  mrb_value application;
+  int i = 0;
+
+  mrb_get_args(mrb, "S", &application);
+
+  while (i < 20) {
+    if (instances[i] != NULL && strcmp(instances[i]->application, RSTRING_PTR(application)) == 0) {
+      instances[i]->outdated = TRUE;
       break;
     }
     i++;
@@ -272,6 +308,7 @@ mrb_mruby_context_gem_init(mrb_state* mrb)
 
   mrb_define_method(mrb       , krn , "mrb_eval"       , mrb_mrb_eval            , MRB_ARGS_REQ(1) | MRB_ARGS_OPT(1));
   mrb_define_method(mrb       , krn , "mrb_stop"       , mrb_mrb_stop            , MRB_ARGS_REQ(1));
+  mrb_define_method(mrb       , krn , "mrb_expire"     , mrb_mrb_expire          , MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb , vm  , "mallocs"        , mrb_vm_s_mallocs        , MRB_ARGS_NONE());
   mrb_define_class_method(mrb , vm  , "reallocs"       , mrb_vm_s_reallocs       , MRB_ARGS_NONE());
   mrb_define_class_method(mrb , vm  , "frees"          , mrb_vm_s_frees          , MRB_ARGS_NONE());

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "mruby.h"
 #include "mruby/compile.h"
 #include "mruby/value.h"

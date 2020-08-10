@@ -36,7 +36,7 @@ class Context
 
   def self.ruby(app, platform, json, exec = true)
     unless exec
-      $LOAD_PATH = ["./#{app}"]
+      $LOAD_PATH = ['./main', "./#{app}"]
 
       if Object.const_defined? :Platform
         Platform.boot if Platform.respond_to?(:boot)

@@ -181,6 +181,14 @@ void context_channel_sem_wait(queueMessage *threadControl)
   }
 }
 
+int context_channel_is_thread_block(queueMessage *threadControl)
+{
+  if (threadControl->sem == THREAD_BLOCK)
+    return TRUE;
+  else
+    return FALSE;
+}
+
 void context_channel_sem_push(queueMessage *threadControl)
 {
   if (threadControl) threadControl->sem = THREAD_FREE;
@@ -207,7 +215,7 @@ int thread_channel_dequeue(queueMessage *queue, int *id, char *buf)
 
   /*thread_channel_debug(queue);*/
 
-  if (queue != NULL && queue->size > 0) {
+  if (queue != NULL && queue->size > 0 && queue->size < 1000 && !context_channel_is_thread_block(queue)) {
     context_channel_sem_wait(queue);
     local = queue->first;
 

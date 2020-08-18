@@ -175,7 +175,7 @@ queueMessage *context_channel_new(void)
 
 void context_channel_sem_wait(queueMessage *threadControl)
 {
-  if (threadControl) {
+  if (threadControl != NULL) {
     while(threadControl->sem == THREAD_BLOCK) usleep(50000);
     threadControl->sem = THREAD_BLOCK;
   }

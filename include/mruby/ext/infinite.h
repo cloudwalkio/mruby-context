@@ -13,10 +13,6 @@
 
 #include <stdlib.h>
 
-#ifndef __INF_FILE__
-#define __INF_FILE__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__))
-#endif /* #ifndef __FILENAME__ */
-
 typedef enum EN_ERROR
 {
     INF_EN_OK = 0,

@@ -22,11 +22,11 @@
 
 #ifndef INF_DEBUG_TYPE
 #define INF_DEBUG_CHANNEL INF_SERIAL_CHANNEL_USB
-#define INF_DEBUG_TYPE INF_SERIAL
+#define INF_DEBUG_TYPE INF_LOGCAT
 #endif /* #ifndef INF_DEBUG_TYPE */
 
 #if INF_DEBUG_TYPE == INF_SERIAL
-#warning INF_DEBUG_TYPE defined as INF_SERIAL. INF_LOGCAT may be preferable.
+#warning INF_DEBUG_TYPE defined as INF_SERIAL. INF_LOGCAT (xcb) may be preferable.
 #endif
 
 #ifndef INF_DEBUG_CHANNEL
@@ -102,14 +102,16 @@ inf_debug_init(void)
     {
       exit(EXIT_FAILURE);
     }
+
+    INF_TRACE("");
   }
 }
 
 extern void
-inf_debug_send(const char *format, ...)
+inf_debug_send(const char *file, const int line, const char *function, const char *format, ...)
 {
   char buffer[1024];
-  int return_value;
+  int length;
   va_list args;
 
   if (!inf_debug_mutex)
@@ -117,34 +119,37 @@ inf_debug_send(const char *format, ...)
     return;
   }
 
-  if (!format)
-  {
-    return; /* INF_EN_INVALID_ARGUMENT */
-  }
-
   pthread_mutex_lock(inf_debug_mutex);
 
   debug_open();
 
-  va_start(args, format);
+  file = (strrchr(file, '/')) ? strrchr(file, '/') + 1 : ((strrchr(file, '\\')) ? strrchr(file, '\\') + 1 : file);
 
-  return_value = vsnprintf(buffer, sizeof(buffer), format, args);
+  sprintf(buffer, "\r\n%10.10lu %s %d %s", OsGetTickCount(), file, line, function);
 
-  if (return_value)
+  length = strlen(buffer);
+
+  if (format)
   {
-    switch (INF_DEBUG_TYPE)
-    {
-    case INF_LOGCAT:
-      OsLog(LOG_DEBUG, buffer);
-      break;
+    buffer[length++] = ' ';
 
-    default:
-      inf_serial_send(INF_DEBUG_CHANNEL, buffer, return_value);
-      break;
-    }
+    va_start(args, format);
+
+    length += vsnprintf(buffer + length, sizeof(buffer) - length, format, args);
+
+    va_end(args);
   }
 
-  va_end(args);
+  switch (INF_DEBUG_TYPE)
+  {
+  case INF_LOGCAT:
+    OsLog(LOG_DEBUG, buffer + 2);
+    break;
+
+  default:
+    inf_serial_send(INF_DEBUG_CHANNEL, buffer, length);
+    break;
+  }
 
   debug_close();
 

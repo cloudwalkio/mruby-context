@@ -1155,7 +1155,7 @@ mrb_thread_scheduler_init(mrb_state *mrb)
 
   if (!mutex_init)
   {
-    PTHREAD_MUTEX_INIT(&thread_scheduler_mutex, NULL);
+    pthread_mutex_init(&thread_scheduler_mutex, NULL);
 
     mutex_init = 1;
   }

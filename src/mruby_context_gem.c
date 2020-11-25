@@ -383,7 +383,7 @@ mrb_mruby_context_gem_init(mrb_state *mrb)
 
   if (!mutex_init)
   {
-    PTHREAD_MUTEX_INIT(&context_mutex, NULL);
+    pthread_mutex_init(&context_mutex, NULL);
 
     mutex_init = 1;
   }

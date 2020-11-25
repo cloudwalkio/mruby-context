@@ -148,7 +148,7 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&context_mutex); /* 2020-11-23: poor protection (shared
+  pthread_mutex_lock(&context_mutex); /* 2020-11-23: poor protection (shared
                                        * mem. address is externalized in return
                                        * statements) */
 
@@ -156,7 +156,7 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
     if (instances[i] != NULL && strcmp(instances[i]->application, application_name) == 0) {
       INF_TRACE("return");
 
-      PTHREAD_MUTEX_UNLK(&context_mutex);
+      pthread_mutex_unlock(&context_mutex);
 
       return instances[i];
     }
@@ -180,7 +180,7 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&context_mutex);
+  pthread_mutex_unlock(&context_mutex);
 
   return current;
 }
@@ -240,7 +240,7 @@ mrb_mrb_stop(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&context_mutex);
+  pthread_mutex_lock(&context_mutex);
 
   mrb_get_args(mrb, "S", &application);
 
@@ -259,7 +259,7 @@ mrb_mrb_stop(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&context_mutex);
+  pthread_mutex_unlock(&context_mutex);
 
   return mrb_nil_value();
 }
@@ -272,7 +272,7 @@ mrb_mrb_expire(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&context_mutex);
+  pthread_mutex_lock(&context_mutex);
 
   mrb_get_args(mrb, "S", &application);
 
@@ -286,7 +286,7 @@ mrb_mrb_expire(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&context_mutex);
+  pthread_mutex_unlock(&context_mutex);
 
   return mrb_nil_value();
 }

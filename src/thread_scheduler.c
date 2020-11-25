@@ -42,8 +42,8 @@
 #endif /* #ifdef _WIN32 */
 
 #define INF_CHANNEL_MAX_SIZE 102400
-#define INF_QUEUE_MAX_SIZE 256
-#define PUBSUB_SLOTS 10
+#define INF_QUEUE_MAX_SIZE 1024 /* TODO: manage "memory leaking" (forgotten nodes) for (user) aborted operations!? */
+#define INF_PUB_SUB_MAX_SLOT 10
 #define THREAD_BLOCK 0
 #define THREAD_COMMAND_MAX_MSG_SIZE 102400
 #define THREAD_COMMUNICATION 1
@@ -97,11 +97,11 @@ typedef struct threadExecutionQueue {
 /* Global variables */
 /********************/
 
-static int conn_thread_events_marker[PUBSUB_SLOTS] = { 0 };
+static int conn_thread_events_marker[INF_PUB_SUB_MAX_SLOT] = { 0 };
 
 static pthread_mutex_t thread_scheduler_mutex;
 
-static message *conn_thread_events[PUBSUB_SLOTS][INF_QUEUE_MAX_SIZE] = { { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL } };
+static message *conn_thread_events[INF_PUB_SUB_MAX_SLOT][INF_QUEUE_MAX_SIZE] = { { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL } };
 
 static message *recv_message_queue[INF_QUEUE_MAX_SIZE] = { NULL };
 
@@ -158,7 +158,13 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
 
       free(queue[i]);
 
-      while (i++ < (INF_QUEUE_MAX_SIZE - 1)) queue[i - 1] = queue[i];
+      while (i++ < (INF_QUEUE_MAX_SIZE - 1)) 
+      {
+        queue[i - 1] = queue[i];
+
+        if (!queue[i]) break; /* 2020-11-24: no need to go through the entire
+                               * queue (sorted) */
+      }
 
       queue[--i] = NULL;
 
@@ -217,7 +223,8 @@ thread_channel_enqueue(message *queue[], int id, char *buf, int len)
 
   i = -1;
 
-  while (queue[++i] && i < INF_QUEUE_MAX_SIZE)
+  while (queue[++i] && i < INF_QUEUE_MAX_SIZE) /* 2020-11-24: will enqueue at
+                                                * the back */
   {
     INF_TRACE("id [%d], queue[%d]->id [%d]", id, i, queue[i]->id);
   };
@@ -578,7 +585,7 @@ mrb_thread_scheduler_s__check(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "ii", &id, &timeout);
 
@@ -605,7 +612,7 @@ mrb_thread_scheduler_s__check(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -619,7 +626,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "i", &id);
 
@@ -671,7 +678,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -684,7 +691,7 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "i", &id);
 
@@ -730,7 +737,7 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -743,7 +750,7 @@ mrb_thread_scheduler_s__pause(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "i", &id);
 
@@ -759,7 +766,7 @@ mrb_thread_scheduler_s__pause(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -772,7 +779,7 @@ mrb_thread_scheduler_s__continue(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "i", &id);
 
@@ -792,7 +799,7 @@ mrb_thread_scheduler_s__continue(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -806,7 +813,7 @@ mrb_thread_channel_s__write(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "iiiS", &id, &channel, &event, &value);
 
@@ -821,7 +828,7 @@ mrb_thread_channel_s__write(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -835,7 +842,7 @@ mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "iii", &id, &channel, &event);
 
@@ -855,7 +862,7 @@ mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return array;
 }
@@ -870,7 +877,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   memset(response, 0, sizeof(response));
 
@@ -887,7 +894,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -903,7 +910,7 @@ mrb_thread_scheduler_s__command_once(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   memset(response, 0, sizeof(response));
 
@@ -924,7 +931,7 @@ mrb_thread_scheduler_s__command_once(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -939,7 +946,7 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "i&", &id, &block);
 
@@ -947,7 +954,7 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
   {
     INF_TRACE("return");
 
-    PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+    pthread_mutex_unlock(&thread_scheduler_mutex);
 
     return mrb_false_value();
   }
@@ -970,14 +977,14 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
   } else {
     INF_TRACE("return");
 
-    PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+    pthread_mutex_unlock(&thread_scheduler_mutex);
 
     return mrb_false_value();
   }
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return mrb_true_value();
 }
@@ -1058,13 +1065,13 @@ mrb_thread_pub_sub_s__subscribe(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   return_value = mrb_fixnum_value(subscribe());
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -1078,7 +1085,7 @@ mrb_thread_pub_sub_s__listen(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "i", &id);
 
@@ -1093,7 +1100,7 @@ mrb_thread_pub_sub_s__listen(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }
@@ -1108,7 +1115,7 @@ mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
 
   INF_TRACE_FUNCTION();
 
-  PTHREAD_MUTEX_LOCK(&thread_scheduler_mutex);
+  pthread_mutex_lock(&thread_scheduler_mutex);
 
   mrb_get_args(mrb, "So", &buf, &avoid_id);
 
@@ -1125,7 +1132,7 @@ mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
 
   INF_TRACE("return");
 
-  PTHREAD_MUTEX_UNLK(&thread_scheduler_mutex);
+  pthread_mutex_unlock(&thread_scheduler_mutex);
 
   return return_value;
 }

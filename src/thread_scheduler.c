@@ -123,7 +123,7 @@ static threadExecutionQueue *executionQueue = NULL;
 static int
 thread_channel_dequeue(message *queue[], int *id, char *buf)
 {
-  int i;
+  int i = INF_QUEUE_MAX_SIZE;
   int length;
 
   INF_TRACE_FUNCTION();
@@ -135,9 +135,9 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
     return 0;
   }
 
-  i = -1;
+  while (!queue[--i]); /* TODO: would be better to have current size available */
 
-  while (queue[++i] && i < INF_QUEUE_MAX_SIZE)
+  while (queue[i] && i >= 0)
   {
     INF_TRACE("*id [%d], queue[%d]->id [%d]", (!id) ? 0 : *id, i, queue[i]->id);
 
@@ -172,6 +172,8 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
 
       return length;
     }
+
+    i--;
   }
 
   INF_TRACE("return [0]");

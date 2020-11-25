@@ -125,7 +125,7 @@ inf_debug_send(const char *file, const int line, const char *function, const cha
 
   file = (strrchr(file, '/')) ? strrchr(file, '/') + 1 : ((strrchr(file, '\\')) ? strrchr(file, '\\') + 1 : file);
 
-  sprintf(buffer, "\r\n%10.10lu %s %d %s", OsGetTickCount(), file, line, function);
+  sprintf(buffer, "\r\n[%10.10lu] <%s#%d> (%s)", OsGetTickCount(), file, line, function);
 
   length = strlen(buffer);
 

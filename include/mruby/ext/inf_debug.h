@@ -21,21 +21,29 @@
 #define INF_LOGCAT 1
 
 #ifdef _INF_DEBUG_
+#ifndef INF_TRACE
+#define INF_TRACE(...) inf_debug_send(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
+#endif /* #ifndef INF_TRACE */
+
+#ifndef INF_TRACE_FUNCTION
+#define INF_TRACE_FUNCTION() INF_TRACE(NULL)
+#endif /* #ifndef INF_TRACE_FUNCTION */
+
 #ifndef INF_TRACE_INIT
 #define INF_TRACE_INIT(...) inf_debug_init(__VA_ARGS__)
 #endif /* #ifndef INF_TRACE_INIT */
-
-#ifndef INF_TRACE
-#define INF_TRACE(...) inf_debug_send(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);
-#endif /* #ifndef INF_TRACE */
 #else
-#ifndef INF_TRACE_INIT
-#define INF_TRACE_INIT(...)
-#endif /* #ifndef INF_TRACE_INIT */
-
 #ifndef INF_TRACE
 #define INF_TRACE(...)
 #endif /* #ifndef INF_TRACE */
+
+#ifndef INF_TRACE_FUNCTION
+#define INF_TRACE_FUNCTION()
+#endif /* #ifndef INF_TRACE_FUNCTION */
+
+#ifndef INF_TRACE_INIT
+#define INF_TRACE_INIT(...)
+#endif /* #ifndef INF_TRACE_INIT */
 #endif /* #ifdef _INF_DEBUG_ */
 
 /********************/

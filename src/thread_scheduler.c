@@ -70,7 +70,6 @@ typedef struct
 
 typedef struct executionMessage {
   int id;
-  int sem;
   int executed;
   char *command;
   int commandLen;
@@ -83,7 +82,6 @@ typedef struct executionMessage {
 typedef struct threadExecutionQueue {
   struct executionMessage *first;
   struct executionMessage *last;
-  int sem;
   int size;
 } threadExecutionQueue;
 
@@ -98,7 +96,9 @@ typedef struct threadExecutionQueue {
  */
 static int conn_thread_events_marker[INF_PUB_SUB_MAX_SLOT] = { 0 };
 
-static pthread_mutex_t thread_scheduler_mutex;
+static pthread_mutex_t thread_scheduler_mutex; /* TODO: rename! */
+
+static pthread_mutex_t thread_scheduler_b_mutex; /* TODO: rename! */
 
 static message *conn_thread_events[INF_PUB_SUB_MAX_SLOT][INF_QUEUE_MAX_SIZE] = { { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL } };
 
@@ -111,6 +111,16 @@ static thread *CommunicationThread = NULL;
 static thread *StatusBarThread = NULL;
 
 static threadExecutionQueue *executionQueue = NULL;
+
+/***********************/
+/* Function prototypes */
+/***********************/
+
+static threadExecutionQueue *
+thread_execution_new(void);
+
+static void
+thread_execution_clean(threadExecutionQueue *queue);
 
 /*********************/
 /* Private functions */
@@ -347,241 +357,6 @@ thread_channel_clean(message *queue)
   INF_TRACE("return");
 }
 
-static threadExecutionQueue *
-thread_execution_new(void)
-{
-  threadExecutionQueue *queue = (threadExecutionQueue *) malloc(sizeof(threadExecutionQueue));
-
-  queue->size = 0;
-  queue->first = NULL;
-  queue->last = NULL;
-  queue->sem = THREAD_BLOCK;
-  return queue;
-}
-
-static void
-thread_execution_sem_wait(threadExecutionQueue *threadControl)
-{
-  if (threadControl) {
-    threadControl->sem = THREAD_BLOCK;
-  }
-}
-
-static void
-thread_execution_sem_push(threadExecutionQueue *threadControl)
-{
-  if (threadControl) threadControl->sem = THREAD_FREE;
-}
-
-static executionMessage *
-thread_execution_message_new(int id)
-{
-  executionMessage *message = (executionMessage *) malloc(sizeof(executionMessage));
-
-  message->id = id;
-  message->sem = THREAD_BLOCK;
-  message->rear = NULL;
-  message->front = NULL;
-  message->command = NULL;
-  message->commandLen = 0;
-  message->response = NULL;
-  message->responseLen = 0;
-  message->executed = 0;
-
-  return message;
-}
-
-static void
-thread_execution_message_sem_wait(executionMessage *threadControl)
-{
-  if (threadControl) {
-    threadControl->sem = THREAD_BLOCK;
-  }
-}
-
-static void
-thread_execution_message_sem_push(executionMessage *threadControl)
-{
-  if (threadControl) threadControl->sem = THREAD_FREE;
-}
-
-static int
-thread_execution_enqueue(threadExecutionQueue *queue, int id, int command, char *buf, int len)
-{
-  executionMessage *message = NULL;
-  executionMessage *local = NULL;
-
-  if (queue == NULL) return 0;
-
-  /* Search for already schedule execution */
-  if (queue && queue->size > 0) {
-    local = queue->first;
-    while (local != NULL) {
-      if (local->id == id) {
-        message = local;
-        break;
-      }
-      local = local->rear;
-    }
-  }
-
-  if (message != NULL) {
-    thread_execution_message_sem_wait(message);
-  } else {
-    thread_execution_sem_wait(queue);
-    message = thread_execution_message_new(id);
-    if (queue->size == 0) {
-      queue->first = message;
-      queue->last = message;
-      queue->size = 1;
-    } else {
-      queue->last->rear = message;
-      message->front = queue->last;
-      queue->last = message;
-      queue->size++;
-    }
-    thread_execution_sem_push(queue);
-  }
-
-  /* Copy command/response to message */
-  if (command == 0) {
-    message->command = (char *) realloc(message->command, len);
-    memcpy(message->command, buf, len);
-    message->commandLen = len;
-    message->executed = 0;
-  } else {
-    message->response = (char *) realloc(message->response, len);
-    memcpy(message->response, buf, len);
-    message->responseLen = len;
-    message->executed = 1;
-  }
-
-  thread_execution_message_sem_push(message);
-
-  return len;
-}
-
-static int
-thread_execution_get(threadExecutionQueue *queue, int id, int command, char *buf)
-{
-  int len = 0;
-  executionMessage *message = NULL;
-  executionMessage *local = NULL;
-
-  /* Search for already schedule execution */
-  if (queue && queue->size > 0) {
-    local = queue->first;
-    while (local != NULL) {
-      if (local->id == id) {
-        message = local;
-        break;
-      }
-      local = local->rear;
-    }
-  }
-  if (message == NULL) return len;
-
-  /* Get information inside of struct synchronizing */
-  if (command == 0 && message->commandLen >= 0 && message->executed == 0) {
-    if (message->commandLen > 0) {
-      memcpy(buf, message->command, message->commandLen);
-      len = message->commandLen;
-      thread_execution_message_sem_wait(message);
-      message->executed = 0;
-      thread_execution_message_sem_push(message);
-    }
-  } else if (command == 1 && message->responseLen >= 0 && message->executed == 1) {
-    if (message->responseLen > 0) {
-      thread_execution_message_sem_wait(message);
-      memcpy(buf, message->response, message->responseLen);
-      len = message->responseLen;
-      message->executed = 1;
-      thread_execution_message_sem_push(message);
-    }
-  }
-
-  return len;
-}
-
-static int
-thread_execution_dequeue(threadExecutionQueue *queue, int id, int command, char *buf)
-{
-  int len = 0;
-  executionMessage *message = NULL;
-  executionMessage *local = NULL;
-
-  /* Search for already schedule execution */
-  if (queue && queue->size > 0) {
-    local = queue->first;
-    while (local != NULL) {
-      if (local->id == id) {
-        message = local;
-        break;
-      }
-      local = local->rear;
-    }
-  }
-  if (message == NULL) return len;
-
-  /* Get information inside of struct synchronizing */
-  if (command == 0 && message && message->commandLen > 0 && message->executed == 0 && message->command) {
-    memcpy(buf, message->command, message->commandLen);
-    len = message->commandLen;
-
-    thread_execution_message_sem_wait(message);
-    free(message->command);
-    message->executed = 0;
-    message->command = NULL;
-    message->commandLen = 0;
-    thread_execution_message_sem_push(message);
-  } else if (command == 1 && message && message->responseLen > 0 && message->executed == 1 && message->response) {
-    thread_execution_message_sem_wait(message);
-    memcpy(buf, message->response, message->responseLen);
-    len = message->responseLen;
-    message->executed = 1;
-    free(message->response);
-    message->response = NULL;
-    message->responseLen = 0;
-    thread_execution_message_sem_push(message);
-  }
-
-  if (message && message->command == NULL && message->response == NULL) {
-    thread_execution_sem_wait(queue);
-
-    if (message->front == NULL)
-      queue->first = message->rear;
-    else
-      if (message->rear != NULL) message->rear->front = NULL;
-
-    if (message->rear == NULL)
-      queue->last = message->front;
-    else
-      if (message->front != NULL) message->front->rear = NULL;
-
-    queue->size--;
-    free(message);
-
-    thread_execution_sem_push(queue);
-  }
-
-  return len;
-}
-
-static void
-thread_execution_clean(threadExecutionQueue *queue)
-{
-  char trash[INF_CHANNEL_MAX_SIZE] = {0x00};
-  int len = 1, id = 0;
-
-  while (len != 0) {
-    id = 0;
-    memset(trash, 0, sizeof(trash));
-    len = thread_execution_dequeue(queue, id, 0, trash);
-    memset(trash, 0, sizeof(trash));
-    if (len > 0) thread_execution_dequeue(queue, id, 1, trash);
-  }
-}
-
 static mrb_value
 mrb_thread_scheduler_s__check(mrb_state *mrb, mrb_value self)
 {
@@ -676,7 +451,6 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
     executionQueue      = thread_execution_new();
 
     context_thread_sem_push(CommunicationThread);
-    thread_execution_sem_push(executionQueue);
   } else {
     return_value = mrb_false_value();
   }
@@ -872,128 +646,6 @@ mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
   return array;
 }
 
-static mrb_value
-mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
-{
-  mrb_value command;
-  char response[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
-  mrb_int id = 0, len = 0;
-  mrb_value return_value;
-
-  INF_TRACE_FUNCTION();
-
-  pthread_mutex_lock(&thread_scheduler_mutex);
-
-  memset(response, 0, sizeof(response));
-
-  mrb_get_args(mrb, "iS", &id, &command);
-
-  len = thread_execution_get(executionQueue, id, 1, response);
-  thread_execution_enqueue(executionQueue, id, 0, RSTRING_PTR(command), RSTRING_LEN(command));
-
-  if (len > 0) {
-    return_value = mrb_str_new(mrb, response, len);
-  } else {
-    return_value = mrb_str_new(mrb, "cache", 5);
-  }
-
-  INF_TRACE("return");
-
-  pthread_mutex_unlock(&thread_scheduler_mutex);
-
-  return return_value;
-}
-
-static mrb_value
-mrb_thread_scheduler_s__command_once(mrb_state *mrb, mrb_value self)
-{
-  mrb_value command;
-  char response[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
-  char trash[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
-  mrb_int id = 0, len = 0;
-  mrb_value return_value;
-
-  INF_TRACE_FUNCTION();
-
-  pthread_mutex_lock(&thread_scheduler_mutex);
-
-  memset(response, 0, sizeof(response));
-
-  mrb_get_args(mrb, "iS", &id, &command);
-
-  len = thread_execution_dequeue(executionQueue, id, 1, response);
-  if (len == 0) {
-    thread_execution_enqueue(executionQueue, id, 0, RSTRING_PTR(command), RSTRING_LEN(command));
-  } else {
-    thread_execution_dequeue(executionQueue, id, 0, trash);
-  }
-
-  if (len > 0) {
-    return_value = mrb_str_new(mrb, response, len);
-  } else {
-    return_value = mrb_str_new(mrb, "cache", 5);
-  }
-
-  INF_TRACE("return");
-
-  pthread_mutex_unlock(&thread_scheduler_mutex);
-
-  return return_value;
-}
-
-static mrb_value
-mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
-{
-  mrb_int id = 0, len = 0;
-  mrb_value block, obj;
-  char command[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
-  executionMessage *local = NULL;
-
-  INF_TRACE_FUNCTION();
-
-  pthread_mutex_lock(&thread_scheduler_mutex);
-
-  mrb_get_args(mrb, "i&", &id, &block);
-
-  if (mrb_nil_p(block) && executionQueue != NULL)
-  {
-    INF_TRACE("return");
-
-    pthread_mutex_unlock(&thread_scheduler_mutex);
-
-    return mrb_false_value();
-  }
-
-  if (executionQueue && executionQueue->size > 0) {
-    local = executionQueue->first;
-    while (local != NULL) {
-      if (local->executed == 0 && local->commandLen > 0 && (id == 0 || local->id == id)) {
-        len = thread_execution_get(executionQueue, local->id, 0, command);
-        if (len > 0) {
-          /* maybe free this obj */ /* <- ??? */
-          obj = mrb_yield(mrb, block, mrb_str_new(mrb, command, len));
-          if (mrb_string_p(obj)) {
-            thread_execution_enqueue(executionQueue, local->id, 1, RSTRING_PTR(obj), RSTRING_LEN(obj));
-          }
-        }
-      }
-      local = local->rear;
-    }
-  } else {
-    INF_TRACE("return");
-
-    pthread_mutex_unlock(&thread_scheduler_mutex);
-
-    return mrb_false_value();
-  }
-
-  INF_TRACE("return");
-
-  pthread_mutex_unlock(&thread_scheduler_mutex);
-
-  return mrb_true_value();
-}
-
 static int
 subscribe(void)
 {
@@ -1142,6 +794,320 @@ mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
   return return_value;
 }
 
+/*********************************************************************************************************************/
+
+static threadExecutionQueue *
+thread_execution_new(void)
+{
+  threadExecutionQueue *queue = (threadExecutionQueue *) malloc(sizeof(threadExecutionQueue));
+
+  queue->size = 0;
+  queue->first = NULL;
+  queue->last = NULL;
+  return queue;
+}
+
+static executionMessage *
+thread_execution_message_new(int id)
+{
+  executionMessage *message = (executionMessage *) malloc(sizeof(executionMessage));
+
+  message->id = id;
+  message->rear = NULL;
+  message->front = NULL;
+  message->command = NULL;
+  message->commandLen = 0;
+  message->response = NULL;
+  message->responseLen = 0;
+  message->executed = 0;
+
+  return message;
+}
+
+static int
+thread_execution_get(threadExecutionQueue *queue, int id, int command, char *buf)
+{
+  int len = 0;
+  executionMessage *message = NULL;
+  executionMessage *local = NULL;
+
+  /* Search for already schedule execution */
+  if (queue && queue->size > 0) {
+    local = queue->first;
+    while (local != NULL) {
+      if (local->id == id) {
+        message = local;
+        break;
+      }
+      local = local->rear;
+    }
+  }
+  if (message == NULL) return len;
+
+  /* Get information inside of struct synchronizing */
+  if (command == 0 && message->commandLen >= 0 && message->executed == 0) {
+    if (message->commandLen > 0) {
+      memcpy(buf, message->command, message->commandLen);
+      len = message->commandLen;
+      message->executed = 0;
+    }
+  } else if (command == 1 && message->responseLen >= 0 && message->executed == 1) {
+    if (message->responseLen > 0) {
+      memcpy(buf, message->response, message->responseLen);
+      len = message->responseLen;
+      message->executed = 1;
+    }
+  }
+
+  return len;
+}
+
+static int
+thread_execution_enqueue(threadExecutionQueue *queue, int id, int command, char *buf, int len)
+{
+  executionMessage *message = NULL;
+  executionMessage *local = NULL;
+
+  if (queue == NULL) return 0;
+
+  /* Search for already schedule execution */
+  if (queue && queue->size > 0) {
+    local = queue->first;
+    while (local != NULL) {
+      if (local->id == id) {
+        message = local;
+        break;
+      }
+      local = local->rear;
+    }
+  }
+
+  if (message != NULL) {
+  } else {
+    message = thread_execution_message_new(id);
+    if (queue->size == 0) {
+      queue->first = message;
+      queue->last = message;
+      queue->size = 1;
+    } else {
+      queue->last->rear = message;
+      message->front = queue->last;
+      queue->last = message;
+      queue->size++;
+    }
+  }
+
+  /* Copy command/response to message */
+  if (command == 0) {
+    message->command = (char *) realloc(message->command, len);
+    memcpy(message->command, buf, len);
+    message->commandLen = len;
+    message->executed = 0;
+  } else {
+    message->response = (char *) realloc(message->response, len);
+    memcpy(message->response, buf, len);
+    message->responseLen = len;
+    message->executed = 1;
+  }
+
+  return len;
+}
+
+static int
+thread_execution_dequeue(threadExecutionQueue *queue, int id, int command, char *buf)
+{
+  int len = 0;
+  executionMessage *message = NULL;
+  executionMessage *local = NULL;
+
+  /* Search for already schedule execution */
+  if (queue && queue->size > 0) {
+    local = queue->first;
+    while (local != NULL) {
+      if (local->id == id) {
+        message = local;
+        break;
+      }
+      local = local->rear;
+    }
+  }
+  if (message == NULL) return len;
+
+  /* Get information inside of struct synchronizing */
+  if (command == 0 && message && message->commandLen > 0 && message->executed == 0 && message->command) {
+    memcpy(buf, message->command, message->commandLen);
+    len = message->commandLen;
+
+    free(message->command);
+    message->executed = 0;
+    message->command = NULL;
+    message->commandLen = 0;
+  } else if (command == 1 && message && message->responseLen > 0 && message->executed == 1 && message->response) {
+    memcpy(buf, message->response, message->responseLen);
+    len = message->responseLen;
+    message->executed = 1;
+    free(message->response);
+    message->response = NULL;
+    message->responseLen = 0;
+  }
+
+  if (message && message->command == NULL && message->response == NULL) {
+    if (message->front == NULL)
+      queue->first = message->rear;
+    else
+      if (message->rear != NULL) message->rear->front = NULL;
+
+    if (message->rear == NULL)
+      queue->last = message->front;
+    else
+      if (message->front != NULL) message->front->rear = NULL;
+
+    queue->size--;
+    free(message);
+  }
+
+  return len;
+}
+
+static void
+thread_execution_clean(threadExecutionQueue *queue)
+{
+  char trash[INF_CHANNEL_MAX_SIZE] = {0x00};
+  int len = 1, id = 0;
+
+  while (len != 0) {
+    id = 0;
+    memset(trash, 0, sizeof(trash));
+    len = thread_execution_dequeue(queue, id, 0, trash);
+    memset(trash, 0, sizeof(trash));
+    if (len > 0) thread_execution_dequeue(queue, id, 1, trash);
+  }
+}
+
+/*********************************************************************************************************************/
+
+static mrb_value
+mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
+{
+  mrb_value command;
+  char response[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
+  mrb_int id = 0, len = 0;
+  mrb_value return_value;
+
+  INF_TRACE_FUNCTION();
+
+  pthread_mutex_lock(&thread_scheduler_b_mutex);
+
+  memset(response, 0, sizeof(response));
+
+  mrb_get_args(mrb, "iS", &id, &command);
+
+  len = thread_execution_get(executionQueue, id, 1, response);
+  thread_execution_enqueue(executionQueue, id, 0, RSTRING_PTR(command), RSTRING_LEN(command));
+
+  if (len > 0) {
+    return_value = mrb_str_new(mrb, response, len);
+  } else {
+    return_value = mrb_str_new(mrb, "cache", 5);
+  }
+
+  INF_TRACE("return");
+
+  pthread_mutex_unlock(&thread_scheduler_b_mutex);
+
+  return return_value;
+}
+
+static mrb_value
+mrb_thread_scheduler_s__command_once(mrb_state *mrb, mrb_value self)
+{
+  mrb_value command;
+  char response[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
+  char trash[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
+  mrb_int id = 0, len = 0;
+  mrb_value return_value;
+
+  INF_TRACE_FUNCTION();
+
+  pthread_mutex_lock(&thread_scheduler_b_mutex);
+
+  memset(response, 0, sizeof(response));
+
+  mrb_get_args(mrb, "iS", &id, &command);
+
+  len = thread_execution_dequeue(executionQueue, id, 1, response);
+  if (len == 0) {
+    thread_execution_enqueue(executionQueue, id, 0, RSTRING_PTR(command), RSTRING_LEN(command));
+  } else {
+    thread_execution_dequeue(executionQueue, id, 0, trash);
+  }
+
+  if (len > 0) {
+    return_value = mrb_str_new(mrb, response, len);
+  } else {
+    return_value = mrb_str_new(mrb, "cache", 5);
+  }
+
+  INF_TRACE("return");
+
+  pthread_mutex_unlock(&thread_scheduler_b_mutex);
+
+  return return_value;
+}
+
+static mrb_value
+mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
+{
+  mrb_int id = 0, len = 0;
+  mrb_value block, obj;
+  char command[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
+  executionMessage *local = NULL;
+
+  INF_TRACE_FUNCTION();
+
+  pthread_mutex_lock(&thread_scheduler_b_mutex);
+
+  mrb_get_args(mrb, "i&", &id, &block);
+
+  if (mrb_nil_p(block) && executionQueue != NULL)
+  {
+    INF_TRACE("return");
+
+    pthread_mutex_unlock(&thread_scheduler_b_mutex);
+
+    return mrb_false_value();
+  }
+
+  if (executionQueue && executionQueue->size > 0) {
+    local = executionQueue->first;
+    while (local != NULL) {
+      if (local->executed == 0 && local->commandLen > 0 && (id == 0 || local->id == id)) {
+        len = thread_execution_get(executionQueue, local->id, 0, command);
+        if (len > 0) {
+          /* maybe free this obj */ /* <- ??? */
+          obj = mrb_yield(mrb, block, mrb_str_new(mrb, command, len));
+          if (mrb_string_p(obj)) {
+            thread_execution_enqueue(executionQueue, local->id, 1, RSTRING_PTR(obj), RSTRING_LEN(obj));
+          }
+        }
+      }
+      local = local->rear;
+    }
+  } else {
+    INF_TRACE("return");
+
+    pthread_mutex_unlock(&thread_scheduler_b_mutex);
+
+    return mrb_false_value();
+  }
+
+  INF_TRACE("return");
+
+  pthread_mutex_unlock(&thread_scheduler_b_mutex);
+
+  return mrb_true_value();
+}
+
 /********************/
 /* Public functions */
 /********************/
@@ -1162,6 +1128,8 @@ mrb_thread_scheduler_init(mrb_state *mrb)
   {
     pthread_mutex_init(&thread_scheduler_mutex, NULL);
 
+    pthread_mutex_init(&thread_scheduler_b_mutex, NULL);
+
     mutex_init = 1;
   }
 
@@ -1176,16 +1144,16 @@ mrb_thread_scheduler_init(mrb_state *mrb)
   mrb_define_class_method(mrb , thread_scheduler , "_pause"    , mrb_thread_scheduler_s__pause    , MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb , thread_scheduler , "_continue" , mrb_thread_scheduler_s__continue , MRB_ARGS_REQ(1));
 
-  mrb_define_class_method(mrb , thread_scheduler , "_command"  , mrb_thread_scheduler_s__command  , MRB_ARGS_REQ(2));
-  mrb_define_class_method(mrb , thread_scheduler , "_command_once" , mrb_thread_scheduler_s__command_once , MRB_ARGS_REQ(2));
-  mrb_define_class_method(mrb , thread_scheduler , "_execute"  , mrb_thread_scheduler_s__execute  , MRB_ARGS_REQ(2));
-
   mrb_define_class_method(mrb , thread_channel   , "_write"     , mrb_thread_channel_s__write     , MRB_ARGS_REQ(4));
   mrb_define_class_method(mrb , thread_channel   , "_read"      , mrb_thread_channel_s__read      , MRB_ARGS_REQ(3));
 
   mrb_define_class_method(mrb , thread_pub_sub   , "_subscribe" , mrb_thread_pub_sub_s__subscribe , MRB_ARGS_NONE());
   mrb_define_class_method(mrb , thread_pub_sub   , "_listen"    , mrb_thread_pub_sub_s__listen    , MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb , thread_pub_sub   , "_publish"   , mrb_thread_pub_sub_s__publish   , MRB_ARGS_REQ(2));
+
+  mrb_define_class_method(mrb , thread_scheduler , "_command"  , mrb_thread_scheduler_s__command  , MRB_ARGS_REQ(2));
+  mrb_define_class_method(mrb , thread_scheduler , "_command_once" , mrb_thread_scheduler_s__command_once , MRB_ARGS_REQ(2));
+  mrb_define_class_method(mrb , thread_scheduler , "_execute"  , mrb_thread_scheduler_s__execute  , MRB_ARGS_REQ(2));
 
   INF_TRACE("return");
 }

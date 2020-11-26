@@ -36,13 +36,8 @@
 /* Macros */
 /**********/
 
-#ifdef _WIN32
-#define sleep(x) Sleep(x * 1000)
-#define usleep(x) Sleep((x < 1000) ? 1 : (x / 1000))
-#endif /* #ifdef _WIN32 */
-
 #define INF_CHANNEL_MAX_SIZE 102400
-#define INF_QUEUE_MAX_SIZE 1024 /* TODO: manage "memory leaking" (forgotten nodes) for (user) aborted operations!? */
+#define INF_QUEUE_MAX_SIZE 1024 /* TODO: manage "memory leaking" (forgotten nodes) from (user) aborted operations!? (could be way smaller) (8~16) */
 #define INF_PUB_SUB_MAX_SLOT 10
 #define THREAD_BLOCK 0
 #define THREAD_COMMAND_MAX_MSG_SIZE 102400
@@ -66,12 +61,11 @@ typedef struct thread {
   int sem;
 } thread;
 
-typedef struct message {
+typedef struct
+{
+  char data[51200];
   int id;
   int len;
-  char data[51200];
-  struct message *front;
-  struct message *rear;
 } message;
 
 typedef struct executionMessage {
@@ -97,6 +91,11 @@ typedef struct threadExecutionQueue {
 /* Global variables */
 /********************/
 
+/**
+ * @brief (deprecated) Marker for indexes in @link conn_thread_events @endlink.
+ * It says if a given index is ready to be used (1) or not (0). <br>
+ * <em> Kept to facilitate refactoring efforts (2020, Nov) (disposable) </em>
+ */
 static int conn_thread_events_marker[INF_PUB_SUB_MAX_SLOT] = { 0 };
 
 static pthread_mutex_t thread_scheduler_mutex;
@@ -118,7 +117,15 @@ static threadExecutionQueue *executionQueue = NULL;
 /*********************/
 
 /**
- * @brief 
+ * @brief Searches for a node in a given queue and retrieves its data: <br>
+ * - When node ID is NULL, dequeues the most recent one;
+ * - When node ID is ZERO, dequeues the most recent one and updates the ID.
+ *
+ * @param queue given message queue
+ * @param id node ID
+ * @param buf dequeued node content
+ *
+ * @return dequeued node content length or 0, otherwise
  */
 static int
 thread_channel_dequeue(message *queue[], int *id, char *buf)
@@ -135,7 +142,8 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
     return 0;
   }
 
-  while (!queue[--i]); /* TODO: would be better to have current size available */
+  while (!queue[--i]); /* 2020-11-25: would be better to know the current size
+                        * beforehand, but its not time consuming */
 
   while (queue[i] && i >= 0)
   {
@@ -182,7 +190,15 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
 }
 
 /**
- * @brief 
+ * @brief Enqueues a node in a given queue. Queue is kept sorted from the
+ * oldest to the newest node to be enqueued.
+ * 
+ * @param queue given message queue
+ * @param id node ID
+ * @param buf node content
+ * @param len node content length
+ * 
+ * @return int enqueued node content length or 0, otherwise
  */
 static int
 thread_channel_enqueue(message *queue[], int id, char *buf, int len)
@@ -225,11 +241,8 @@ thread_channel_enqueue(message *queue[], int id, char *buf, int len)
 
   i = -1;
 
-  while (queue[++i] && i < INF_QUEUE_MAX_SIZE) /* 2020-11-24: will enqueue at
-                                                * the back */
-  {
-    INF_TRACE("id [%d], queue[%d]->id [%d]", id, i, queue[i]->id);
-  };
+  while (queue[++i] && i < INF_QUEUE_MAX_SIZE); /* 2020-11-24: will enqueue at
+                                                 * the back */
 
   if (i >= INF_QUEUE_MAX_SIZE)
   {
@@ -270,33 +283,25 @@ context_thread_sem_push(thread *threadControl)
 static int
 context_thread_sem_wait(thread *threadControl, int timeout_msec)
 {
-  int attempts = 6000; // 6000 * 50 ms = 5 minutes
-  int i = 1;
-
-  if (timeout_msec > 0) attempts = timeout_msec / 50;
+  (void) timeout_msec;
 
   if (threadControl) {
-    while (threadControl->sem == THREAD_BLOCK) {
-      usleep(50000);
-      i++;
-      if (i >= attempts) return -1;
+    if (threadControl->sem == THREAD_BLOCK) {
+      return -1;
     }
+
     threadControl->sem = THREAD_BLOCK;
   }
+
   return 1;
 }
 
 static int
 context_thread_pause(thread *threadControl)
 {
-  int attempt = 1, attempts = 10, ret = 0;
+  int ret = 0;
 
   if (threadControl != NULL && threadControl->status != THREAD_STATUS_DEAD) {
-    while (threadControl->status == THREAD_STATUS_ALIVE && attempt <= attempts) {
-      usleep(10000);
-      attempt++;
-    }
-
     context_thread_sem_wait(threadControl, 0);
     if (threadControl->status == THREAD_STATUS_ALIVE) {
       threadControl->status = THREAD_STATUS_PAUSE;
@@ -358,7 +363,6 @@ static void
 thread_execution_sem_wait(threadExecutionQueue *threadControl)
 {
   if (threadControl) {
-    while (threadControl->sem == THREAD_BLOCK); /* sleep(50000); */
     threadControl->sem = THREAD_BLOCK;
   }
 }
@@ -391,7 +395,6 @@ static void
 thread_execution_message_sem_wait(executionMessage *threadControl)
 {
   if (threadControl) {
-    while (threadControl->sem == THREAD_BLOCK); /* usleep(50000); */
     threadControl->sem = THREAD_BLOCK;
   }
 }

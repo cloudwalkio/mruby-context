@@ -216,11 +216,9 @@ mrb_mrb_eval(mrb_state *mrb, mrb_value self)
     ret = mrb_load_nstring_cxt(current->mrb, RSTRING_PTR(code), RSTRING_LEN(code), current->context);
   }
 
-  /* 2020-11-23: if starting new mruby contexts isn't natively async, it may be
-   * a problem to do it as if it was. Matz said it does not intend to support
-   * multithread environments (so the 'thread bus approach' with multiple mruby
-   * contexts may need to be replaced by another approach based on a single
-   * mruby context) */
+  /* 2020-11-23: if starting new mruby contexts isn't natively an asynchronous
+   * operation, it may be a problem to use it as if it was. It's something to
+   * bear in mind along the way. */
 
   if (mrb_undef_p(ret))
     mrb_ret = mrb_nil_value();
@@ -418,8 +416,6 @@ extern void
 mrb_mruby_context_gem_final(mrb_state *mrb)
 {
   INF_TRACE_FUNCTION();
-
-  /* Nothing to do! */
 
   INF_TRACE("return");
 }

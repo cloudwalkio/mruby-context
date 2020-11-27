@@ -53,7 +53,8 @@
 /* Type definitions */
 /********************/
 
-typedef struct thread {
+typedef struct thread
+{
   char command[256];
   char response[256];
   int id;
@@ -68,7 +69,8 @@ typedef struct
   int len;
 } message;
 
-typedef struct executionMessage {
+typedef struct executionMessage
+{
   char *command;
   char *response;
   int commandLen;
@@ -79,7 +81,8 @@ typedef struct executionMessage {
   struct executionMessage *rear;
 } executionMessage;
 
-typedef struct threadExecutionQueue {
+typedef struct threadExecutionQueue
+{
   int size;
   struct executionMessage *first;
   struct executionMessage *last;

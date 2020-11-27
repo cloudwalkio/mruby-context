@@ -374,7 +374,7 @@ pubsub_publish(char *buf, int len, int avoid_id)
 {
   int id = 0, ret = 0;
 
-  while (conn_thread_events_marker[id] && id < 10)
+  while (id < 10 && conn_thread_events_marker[id])
   {
     if (id != avoid_id)
     {
@@ -864,7 +864,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
 
     i = 0;
 
-    while (message_send_queue[i] && i < INF_QUEUE_MAX_SIZE)
+    while (i < INF_QUEUE_MAX_SIZE && message_send_queue[i])
     {
       free(message_send_queue[i]);
 
@@ -873,7 +873,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
 
     i = 0;
 
-    while (message_recv_queue[i] && i < INF_QUEUE_MAX_SIZE)
+    while (i < INF_QUEUE_MAX_SIZE && message_recv_queue[i])
     {
       free(message_recv_queue[i]);
 
@@ -929,9 +929,7 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
     context_thread_sem_wait(CommunicationThread, 0);
     CommunicationThread->status = THREAD_STATUS_DEAD;
 
-    i = 0;
-
-    while (message_send_queue[i] && i < INF_QUEUE_MAX_SIZE)
+    while (i < INF_QUEUE_MAX_SIZE && message_send_queue[i])
     {
       free(message_send_queue[i]);
 
@@ -940,7 +938,7 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 
     i = 0;
 
-    while (message_recv_queue[i] && i < INF_QUEUE_MAX_SIZE)
+    while (i < INF_QUEUE_MAX_SIZE && message_recv_queue[i])
     {
       free(message_recv_queue[i]);
 

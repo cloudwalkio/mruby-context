@@ -11,16 +11,16 @@
 #ifndef _CONTEXT_H_INCLUDED_
 #define _CONTEXT_H_INCLUDED_
 
-#ifndef INF_TRACE
-#define INF_TRACE(...)
-#endif /* #ifndef INF_TRACE */
+#ifndef TRACE
+#define TRACE(...)
+#endif /* #ifndef TRACE */
 
-#ifndef INF_TRACE_FUNCTION
-#define INF_TRACE_FUNCTION(...)
-#endif /* #ifndef INF_TRACE_FUNCTION */
+#ifndef TRACE_FUNCTION
+#define TRACE_FUNCTION(...)
+#endif /* #ifndef TRACE_FUNCTION */
 
-#ifndef INF_TRACE_INIT
-#define INF_TRACE_INIT(...)
-#endif /* #ifndef INF_TRACE_INIT */
+#ifndef TRACE_INIT
+#define TRACE_INIT(...)
+#endif /* #ifndef TRACE_INIT */
 
 #endif /* _CONTEXT_H_INCLUDED_ */

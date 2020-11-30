@@ -146,7 +146,7 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
   mrb_allocf allocf;
   int instance_free_spot = -1;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&context_mutex); /* 2020-11-23: poor protection (shared
                                        * mem. address is externalized in return
@@ -154,7 +154,7 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 
   while (i < 20) {
     if (instances[i] != NULL && strcmp(instances[i]->application, application_name) == 0) {
-      INF_TRACE("return");
+      TRACE("return");
 
       pthread_mutex_unlock(&context_mutex);
 
@@ -178,7 +178,7 @@ mrb_alloc_instance(char *application_name, int application_size, mrb_state *mrb)
 
   instances[instance_free_spot] = current;
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&context_mutex);
 
@@ -236,7 +236,7 @@ mrb_mrb_stop(mrb_state *mrb, mrb_value self)
   mrb_value application;
   int i = 0;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&context_mutex);
 
@@ -255,7 +255,7 @@ mrb_mrb_stop(mrb_state *mrb, mrb_value self)
     i++;
   }
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&context_mutex);
 
@@ -268,7 +268,7 @@ mrb_mrb_expire(mrb_state *mrb, mrb_value self)
   mrb_value application;
   int i = 0;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&context_mutex);
 
@@ -282,7 +282,7 @@ mrb_mrb_expire(mrb_state *mrb, mrb_value self)
     i++;
   }
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&context_mutex);
 
@@ -354,7 +354,7 @@ context_memprof_init(mrb_allocf *funp, void **udp)
 {
   struct memprof_userdata *ud;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   ud = calloc(1, sizeof(*ud));
 
@@ -366,7 +366,7 @@ context_memprof_init(mrb_allocf *funp, void **udp)
   *funp = context_memprof_allocf;
   *udp  = ud;
 
-  INF_TRACE("return");
+  TRACE("return");
 }
 
 extern void
@@ -377,7 +377,7 @@ mrb_mruby_context_gem_init(mrb_state *mrb)
   struct RClass *krn;
   struct RClass *vm;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   if (!mutex_init)
   {
@@ -409,13 +409,13 @@ mrb_mruby_context_gem_init(mrb_state *mrb)
 
   DONE;
 
-  INF_TRACE("return");
+  TRACE("return");
 }
 
 extern void
 mrb_mruby_context_gem_final(mrb_state *mrb)
 {
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
-  INF_TRACE("return");
+  TRACE("return");
 }

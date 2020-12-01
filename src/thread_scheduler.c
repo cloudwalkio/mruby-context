@@ -36,9 +36,9 @@
 /* Macros */
 /**********/
 
-#define INF_CHANNEL_MAX_SIZE 102400
-#define INF_QUEUE_MAX_SIZE 1024 /* TODO: manage "memory leaking" (forgotten nodes) from (user) aborted operations!? (this could be way smaller) (~8) */
-#define INF_PUB_SUB_MAX_SLOT 10
+#define CHANNEL_MAX_SIZE 102400
+#define PUB_SUB_MAX_SLOT 10
+#define QUEUE_MAX_SIZE 1024 /* TODO: manage "memory leaking" (forgotten nodes) from (user) aborted operations!? (this could be way smaller) (~8) */
 #define THREAD_BLOCK 0
 #define THREAD_COMMAND_MAX_MSG_SIZE 102400
 #define THREAD_COMMUNICATION 1
@@ -97,17 +97,17 @@ typedef struct threadExecutionQueue
  * It says if a given index is ready to be used (1) or not (0). <br>
  * <em> Kept to facilitate refactoring efforts (2020, Nov) (disposable) </em>
  */
-static int conn_thread_events_marker[INF_PUB_SUB_MAX_SLOT] = { 0 };
+static int conn_thread_events_marker[PUB_SUB_MAX_SLOT] = { 0 };
 
 static pthread_mutex_t command_exchange_mutex;
 
 static pthread_mutex_t message_exchange_mutex;
 
-static message *conn_thread_events[INF_PUB_SUB_MAX_SLOT][INF_QUEUE_MAX_SIZE] = { { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL } };
+static message *conn_thread_events[PUB_SUB_MAX_SLOT][QUEUE_MAX_SIZE] = { { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL }, { NULL } };
 
-static message *message_recv_queue[INF_QUEUE_MAX_SIZE] = { NULL };
+static message *message_recv_queue[QUEUE_MAX_SIZE] = { NULL };
 
-static message *message_send_queue[INF_QUEUE_MAX_SIZE] = { NULL };
+static message *message_send_queue[QUEUE_MAX_SIZE] = { NULL };
 
 static thread *CommunicationThread = NULL;
 
@@ -133,14 +133,14 @@ static threadExecutionQueue *executionQueue = NULL;
 static int
 thread_channel_dequeue(message *queue[], int *id, char *buf)
 {
-  int i = INF_QUEUE_MAX_SIZE;
+  int i = QUEUE_MAX_SIZE;
   int length;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   if (!queue || !buf)
   {
-    INF_TRACE("return [0]");
+    TRACE("return [0]");
 
     return 0;
   }
@@ -150,7 +150,7 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
 
   while (queue[i] && i >= 0)
   {
-    INF_TRACE("*id [%d], queue[%d]->id [%d]", (!id) ? 0 : *id, i, queue[i]->id);
+    TRACE("*id [%d], queue[%d]->id [%d]", (!id) ? 0 : *id, i, queue[i]->id);
 
     if (id == NULL || *id == 0 || queue[i]->id == *id)
     {
@@ -165,11 +165,11 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
 
       memcpy(buf, queue[i]->data, length);
 
-      INF_TRACE("%*.*s", length, length, buf);
+      TRACE("%*.*s", length, length, buf);
 
       free(queue[i]);
 
-      while (i++ < (INF_QUEUE_MAX_SIZE - 1)) 
+      while (i++ < (QUEUE_MAX_SIZE - 1)) 
       {
         queue[i - 1] = queue[i];
 
@@ -179,7 +179,7 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
 
       queue[--i] = NULL;
 
-      INF_TRACE("return [%d]", length);
+      TRACE("return [%d]", length);
 
       return length;
     }
@@ -187,7 +187,7 @@ thread_channel_dequeue(message *queue[], int *id, char *buf)
     i--;
   }
 
-  INF_TRACE("return [0]");
+  TRACE("return [0]");
 
   return 0;
 }
@@ -209,18 +209,18 @@ thread_channel_enqueue(message *queue[], int id, char *buf, int len)
   int i;
   message *node;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
-  if (len <= 0 || len >= INF_CHANNEL_MAX_SIZE)
+  if (len <= 0 || len >= CHANNEL_MAX_SIZE)
   {
-    INF_TRACE("return [%d]", len);
+    TRACE("return [%d]", len);
 
     return 0;
   }
 
   if (!queue || !buf)
   {
-    INF_TRACE("return [%d]", len);
+    TRACE("return [%d]", len);
 
     return 0;
   }
@@ -229,7 +229,7 @@ thread_channel_enqueue(message *queue[], int id, char *buf, int len)
 
   if (!node)
   {
-    INF_TRACE("return [%d]", len);
+    TRACE("return [%d]", len);
 
     return 0;
   }
@@ -238,27 +238,27 @@ thread_channel_enqueue(message *queue[], int id, char *buf, int len)
 
   memcpy(node->data, buf, len);
 
-  INF_TRACE("%*.*s", len, len, node->data);
+  TRACE("%*.*s", len, len, node->data);
 
   node->len = len;
 
   i = -1;
 
-  while (queue[++i] && i < INF_QUEUE_MAX_SIZE); /* 2020-11-24: will enqueue at
+  while (queue[++i] && i < QUEUE_MAX_SIZE); /* 2020-11-24: will enqueue at
                                                  * the back */
 
-  if (i >= INF_QUEUE_MAX_SIZE)
+  if (i >= QUEUE_MAX_SIZE)
   {
     free(node);
 
-    INF_TRACE("return [0]");
+    TRACE("return [0]");
 
     return 0;
   }
 
   queue[i] = (void *) node;
 
-  INF_TRACE("queue[%d]->id [%d], return [%d]", i, queue[i]->id, len);
+  TRACE("queue[%d]->id [%d], return [%d]", i, queue[i]->id, len);
 
   return len;
 }
@@ -332,7 +332,7 @@ context_thread_pause(thread *threadControl)
 static void
 thread_channel_clean(message *queue)
 {
-  char trash[INF_CHANNEL_MAX_SIZE] = { 0x00 };
+  char trash[CHANNEL_MAX_SIZE] = { 0x00 };
   int id;
   int len = 1;
 
@@ -576,7 +576,7 @@ thread_execution_dequeue(threadExecutionQueue *queue, int id, int command, char 
 static void
 thread_execution_clean(threadExecutionQueue *queue)
 {
-  char trash[INF_CHANNEL_MAX_SIZE] = {0x00};
+  char trash[CHANNEL_MAX_SIZE] = {0x00};
   int len = 1, id = 0;
 
   while (len != 0) {
@@ -596,16 +596,16 @@ static mrb_value
 mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0, channel = 0, event = 0;
-  char buf[INF_CHANNEL_MAX_SIZE] = {0x00};
+  char buf[CHANNEL_MAX_SIZE] = {0x00};
   mrb_value array;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
   mrb_get_args(mrb, "iii", &id, &channel, &event);
 
-  INF_TRACE("channel [%d], event [%d]", channel, event);
+  TRACE("channel [%d], event [%d]", channel, event);
 
   if (channel == 0) {
     len = thread_channel_dequeue(message_send_queue, &event, buf);
@@ -619,7 +619,7 @@ mrb_thread_channel_s__read(mrb_state *mrb, mrb_value self)
     mrb_ary_push(mrb, array, mrb_str_new(mrb, buf, len));
   }
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -633,13 +633,13 @@ mrb_thread_channel_s__write(mrb_state *mrb, mrb_value self)
   mrb_value value;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
   mrb_get_args(mrb, "iiiS", &id, &channel, &event, &value);
 
-  INF_TRACE("channel [%d], event [%d]", channel, event);
+  TRACE("channel [%d], event [%d]", channel, event);
 
   if (channel == 0)
     len = thread_channel_enqueue(message_send_queue, event, RSTRING_PTR(value), RSTRING_LEN(value));
@@ -648,7 +648,7 @@ mrb_thread_channel_s__write(mrb_state *mrb, mrb_value self)
 
   return_value = mrb_fixnum_value(len);
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -659,10 +659,10 @@ static mrb_value
 mrb_thread_pub_sub_s__listen(mrb_state *mrb, mrb_value self)
 {
   mrb_int id = 0, len = 0;
-  char buf[INF_CHANNEL_MAX_SIZE] = {0x00};
+  char buf[CHANNEL_MAX_SIZE] = {0x00};
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
@@ -677,7 +677,7 @@ mrb_thread_pub_sub_s__listen(mrb_state *mrb, mrb_value self)
   else
     return_value = mrb_nil_value();
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -692,7 +692,7 @@ mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
   mrb_value buf;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
@@ -709,7 +709,7 @@ mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
 
   return_value = mrb_false_value();
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -721,13 +721,13 @@ mrb_thread_pub_sub_s__subscribe(mrb_state *mrb, mrb_value self)
 {
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
   return_value = mrb_fixnum_value(subscribe());
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -740,7 +740,7 @@ mrb_thread_scheduler_s__check(mrb_state *mrb, mrb_value self)
   mrb_int status = 0, id = 0, ret = 1, timeout = 0;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
@@ -767,7 +767,7 @@ mrb_thread_scheduler_s__check(mrb_state *mrb, mrb_value self)
   else
     return_value = mrb_fixnum_value(status);
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -780,7 +780,7 @@ mrb_thread_scheduler_s__continue(mrb_state *mrb, mrb_value self)
   mrb_int id = 0, ret = 0;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
@@ -800,7 +800,7 @@ mrb_thread_scheduler_s__continue(mrb_state *mrb, mrb_value self)
   else
     return_value = mrb_false_value();
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -813,7 +813,7 @@ mrb_thread_scheduler_s__pause(mrb_state *mrb, mrb_value self)
   mrb_int id = 0, pause = 0;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
@@ -829,7 +829,7 @@ mrb_thread_scheduler_s__pause(mrb_state *mrb, mrb_value self)
   else
     return_value = mrb_false_value();
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -843,7 +843,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
   mrb_int id = 0;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
@@ -864,7 +864,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
 
     i = 0;
 
-    while (i < INF_QUEUE_MAX_SIZE && message_send_queue[i])
+    while (i < QUEUE_MAX_SIZE && message_send_queue[i])
     {
       free(message_send_queue[i]);
 
@@ -873,7 +873,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
 
     i = 0;
 
-    while (i < INF_QUEUE_MAX_SIZE && message_recv_queue[i])
+    while (i < QUEUE_MAX_SIZE && message_recv_queue[i])
     {
       free(message_recv_queue[i]);
 
@@ -902,7 +902,7 @@ mrb_thread_scheduler_s__start(mrb_state *mrb, mrb_value self)
     return_value = mrb_false_value();
   }
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -915,7 +915,7 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
   mrb_int i = 0, id = 0;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&message_exchange_mutex);
 
@@ -929,7 +929,7 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
     context_thread_sem_wait(CommunicationThread, 0);
     CommunicationThread->status = THREAD_STATUS_DEAD;
 
-    while (i < INF_QUEUE_MAX_SIZE && message_send_queue[i])
+    while (i < QUEUE_MAX_SIZE && message_send_queue[i])
     {
       free(message_send_queue[i]);
 
@@ -938,7 +938,7 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 
     i = 0;
 
-    while (i < INF_QUEUE_MAX_SIZE && message_recv_queue[i])
+    while (i < QUEUE_MAX_SIZE && message_recv_queue[i])
     {
       free(message_recv_queue[i]);
 
@@ -959,7 +959,7 @@ mrb_thread_scheduler_s__stop(mrb_state *mrb, mrb_value self)
 
   return_value = mrb_true_value();
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
 
@@ -974,7 +974,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
   mrb_int id = 0, len = 0;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&command_exchange_mutex);
 
@@ -991,7 +991,7 @@ mrb_thread_scheduler_s__command(mrb_state *mrb, mrb_value self)
     return_value = mrb_str_new(mrb, "cache", 5);
   }
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&command_exchange_mutex);
 
@@ -1007,7 +1007,7 @@ mrb_thread_scheduler_s__command_once(mrb_state *mrb, mrb_value self)
   mrb_int id = 0, len = 0;
   mrb_value return_value;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&command_exchange_mutex);
 
@@ -1028,7 +1028,7 @@ mrb_thread_scheduler_s__command_once(mrb_state *mrb, mrb_value self)
     return_value = mrb_str_new(mrb, "cache", 5);
   }
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&command_exchange_mutex);
 
@@ -1043,7 +1043,7 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
   char command[THREAD_COMMAND_MAX_MSG_SIZE] = {0x00};
   executionMessage *local = NULL;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   pthread_mutex_lock(&command_exchange_mutex);
 
@@ -1051,7 +1051,7 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
 
   if (mrb_nil_p(block) && executionQueue != NULL)
   {
-    INF_TRACE("return");
+    TRACE("return");
 
     pthread_mutex_unlock(&command_exchange_mutex);
 
@@ -1074,14 +1074,14 @@ mrb_thread_scheduler_s__execute(mrb_state *mrb, mrb_value self)
       local = local->rear;
     }
   } else {
-    INF_TRACE("return");
+    TRACE("return");
 
     pthread_mutex_unlock(&command_exchange_mutex);
 
     return mrb_false_value();
   }
 
-  INF_TRACE("return");
+  TRACE("return");
 
   pthread_mutex_unlock(&command_exchange_mutex);
 
@@ -1102,7 +1102,7 @@ mrb_thread_scheduler_init(mrb_state *mrb)
   struct RClass *thread_pub_sub;
   struct RClass *context;
 
-  INF_TRACE_FUNCTION();
+  TRACE_FUNCTION();
 
   if (!mutex_init)
   {
@@ -1138,5 +1138,5 @@ mrb_thread_scheduler_init(mrb_state *mrb)
   mrb_define_class_method(mrb , thread_scheduler , "_command_once" , mrb_thread_scheduler_s__command_once , MRB_ARGS_REQ(2));
   mrb_define_class_method(mrb , thread_scheduler , "_execute"  , mrb_thread_scheduler_s__execute  , MRB_ARGS_REQ(2));
 
-  INF_TRACE("return");
+  TRACE("return");
 }

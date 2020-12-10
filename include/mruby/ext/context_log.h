@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+#include "context.h"
+
 void ContextLog(mrb_state *mrb, int severity_level, const char *format, ...);
 void ContextLogFile(const char *format, ...);
 

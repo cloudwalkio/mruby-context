@@ -374,9 +374,9 @@ pubsub_publish(char *buf, int len, int avoid_id)
 {
   int id = 0, ret = 0;
 
-  while (id < 10 && conn_thread_events_marker[id])
+  while (id < 10)
   {
-    if (id != avoid_id)
+    if (conn_thread_events_marker[id] && id == avoid_id)
     {
       ret = thread_channel_enqueue(conn_thread_events[id], 0, buf, len);
     }
@@ -704,15 +704,13 @@ mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
     } else {
       len = pubsub_publish(RSTRING_PTR(buf), RSTRING_LEN(buf), -1);
     }
-    if (len > 0) return_value = mrb_true_value();
   }
-
-  return_value = mrb_false_value();
-
-  TRACE("return");
+  if (len > 0 )
+    return_value = mrb_true_value();
+  else
+    return_value = mrb_false_value();
 
   pthread_mutex_unlock(&message_exchange_mutex);
-
   return return_value;
 }
 

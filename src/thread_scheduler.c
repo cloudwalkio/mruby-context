@@ -710,6 +710,8 @@ mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
   else
     return_value = mrb_false_value();
 
+  TRACE("return");
+
   pthread_mutex_unlock(&message_exchange_mutex);
   return return_value;
 }

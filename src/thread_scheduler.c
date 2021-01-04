@@ -370,13 +370,13 @@ subscribe(void)
 }
 
 static int
-pubsub_publish(char *buf, int len, int avoid_id)
+pubsub_publish(char *buf, int len, int target_id)
 {
   int id = 0, ret = 0;
 
-  while (id < 10 && conn_thread_events_marker[id])
+  while (id < 10)
   {
-    if (id != avoid_id)
+    if (conn_thread_events_marker[id] && id == target_id)
     {
       ret = thread_channel_enqueue(conn_thread_events[id], 0, buf, len);
     }
@@ -688,7 +688,7 @@ static mrb_value
 mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
 {
   mrb_int len = 0;
-  mrb_value avoid_id;
+  mrb_value target_id;
   mrb_value buf;
   mrb_value return_value;
 
@@ -696,23 +696,23 @@ mrb_thread_pub_sub_s__publish(mrb_state *mrb, mrb_value self)
 
   pthread_mutex_lock(&message_exchange_mutex);
 
-  mrb_get_args(mrb, "So", &buf, &avoid_id);
+  mrb_get_args(mrb, "So", &buf, &target_id);
 
   if (mrb_string_p(buf)) {
-    if (mrb_fixnum_p(avoid_id)) {
-      len = pubsub_publish(RSTRING_PTR(buf), RSTRING_LEN(buf), mrb_fixnum(avoid_id));
+    if (mrb_fixnum_p(target_id)) {
+      len = pubsub_publish(RSTRING_PTR(buf), RSTRING_LEN(buf), mrb_fixnum(target_id));
     } else {
       len = pubsub_publish(RSTRING_PTR(buf), RSTRING_LEN(buf), -1);
     }
-    if (len > 0) return_value = mrb_true_value();
   }
-
-  return_value = mrb_false_value();
+  if (len > 0 )
+    return_value = mrb_true_value();
+  else
+    return_value = mrb_false_value();
 
   TRACE("return");
 
   pthread_mutex_unlock(&message_exchange_mutex);
-
   return return_value;
 }
 
